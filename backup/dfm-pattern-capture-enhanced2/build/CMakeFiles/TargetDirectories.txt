@@ -1,0 +1,4 @@
+/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced2/build/CMakeFiles/dfm_pattern_capture.dir
+/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced2/build/CMakeFiles/generate_test_gds.dir
+/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced2/build/CMakeFiles/edit_cache.dir
+/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced2/build/CMakeFiles/rebuild_cache.dir

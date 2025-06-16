@@ -1,0 +1,17 @@
+Added layer 67:20 to pattern with 2 polygons
+Added layer 68:20 to pattern with 3 polygons
+Added layer 69:20 to pattern with 2 polygons
+Pattern input_layers size: 3
+Serialized input_layers JSON: [{"layer":67,"datatype":20},{"layer":68,"datatype":20},{"layer":69,"datatype":20}]
+Inserting polygon for layer 67:20 with coordinates: [[1.20,1.20],[1.80,1.20],[1.80,1.80],[1.20,1.80]]
+Inserting polygon for layer 67:20 with coordinates: [[1.80,1.80],[2.40,1.80],[2.40,2.40],[1.80,2.40]]
+Inserting polygon for layer 68:20 with coordinates: [[1.20,1.20],[1.60,1.20],[1.40,1.60]]
+Inserting polygon for layer 68:20 with coordinates: [[1.64,1.24],[2.04,1.24],[1.84,1.64]]
+Inserting polygon for layer 68:20 with coordinates: [[1.28,1.68],[1.68,1.68],[1.48,2.08]]
+Inserting polygon for layer 69:20 with coordinates: [[1.40,1.40],[1.80,1.40],[1.80,1.80],[1.40,1.80]]
+Inserting polygon for layer 69:20 with coordinates: [[2.00,1.40],[2.40,1.40],[2.40,1.80],[2.00,1.80]]
+Inserting polygon for layer 66:20 with coordinates: [[1.00,1.00],[3.00,1.00],[3.00,3.00],[1.00,3.00]]
+Successfully stored pattern: pattern_66_20_67_20_68_20_69_20_4.00_
+Total patterns processed: 1
+Successfully stored: 1
+Failed: 0

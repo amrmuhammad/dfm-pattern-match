@@ -1,0 +1,19 @@
+Perimeter segment 0: dx=100, dy=0, length=100, total=100
+Perimeter segment 1: dx=0, dy=100, length=100, total=200
+Perimeter segment 2: dx=-100, dy=0, length=100, total=300
+Perimeter segment 3: dx=0, dy=-100, length=100, total=400
+Added polygon to layer 1, area=10000
+Perimeter segment 0: dx=100, dy=0, length=100, total=100
+Perimeter segment 1: dx=0, dy=100, length=100, total=200
+Perimeter segment 2: dx=-100, dy=0, length=100, total=300
+Perimeter segment 3: dx=0, dy=-100, length=100, total=400
+Added polygon to layer 2, area=10000
+Perimeter segment 0: dx=50, dy=0, length=50, total=50
+Perimeter segment 1: dx=0, dy=50, length=50, total=100
+Perimeter segment 2: dx=-50, dy=0, length=50, total=150
+Perimeter segment 3: dx=0, dy=-50, length=50, total=200
+Inserting polygon with coordinates: [[50.00,50.00],[100.00,50.00],[100.00,100.00],[50.00,100.00]]
+Successfully stored pattern: pattern_1_10000.00_2_
+Total patterns processed: 1
+Successfully stored: 1
+Failed: 0

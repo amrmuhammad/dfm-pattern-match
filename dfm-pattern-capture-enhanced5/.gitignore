@@ -1,0 +1,6 @@
+build/
+*.o
+*.log
+*.gds
+*.diff
+*.filtered
