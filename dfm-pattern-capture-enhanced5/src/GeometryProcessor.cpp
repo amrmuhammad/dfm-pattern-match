@@ -1,13 +1,21 @@
 #include "GeometryProcessor.h"
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/polygon.hpp>
+#include <boost/geometry/geometries/adapted/std_array.hpp>
 #include <algorithm>
-#include <iostream>
+#include <sstream>
 #include <Logging.h>
 
+namespace bg = boost::geometry;
+using point_t = bg::model::d2::point_xy<double>;
+using polygon_t = bg::model::polygon<point_t>;
+using multi_polygon_t = bg::model::multi_polygon<polygon_t>;
+
 std::tuple<double, double, double, double> GeometryProcessor::getBoundingBox(const Polygon& polygon) {
-    LOG_FUNCTION()
-    
+    LOG_FUNCTION();
+
     if (polygon.points.empty()) {
-        std::cout << "Warning: Empty polygon in getBoundingBox" << std::endl;
+        LOG_WARN("Empty polygon in getBoundingBox");
         return {0, 0, 0, 0};
     }
     double min_x = polygon.points[0].x, max_x = polygon.points[0].x;
@@ -18,77 +26,192 @@ std::tuple<double, double, double, double> GeometryProcessor::getBoundingBox(con
         min_y = std::min(min_y, point.y);
         max_y = std::max(max_y, point.y);
     }
+    std::ostringstream oss;
+    oss << "Bounding box: min_x=" << min_x << ", max_x=" << max_x
+        << ", min_y=" << min_y << ", max_y=" << max_y;
+    LOG_DEBUG(oss.str());
     return {min_x, max_x, min_y, max_y};
 }
 
 Polygon GeometryProcessor::intersectPolygons(const Polygon& poly1, const Polygon& poly2) {
-    LOG_FUNCTION()
-    
+    LOG_FUNCTION();
+
     Polygon result;
     if (!poly1.isValid() || !poly2.isValid()) {
-        std::cout << "Invalid input polygons for intersection" << std::endl;
+        LOG_ERROR("Invalid input polygons for intersection");
         return result;
     }
 
-    auto [min1_x, max1_x, min1_y, max1_y] = getBoundingBox(poly1);
-    auto [min2_x, max2_x, min2_y, max2_y] = getBoundingBox(poly2);
-    
-    std::cout << "Intersecting polygons: poly1 bbox=(" << min1_x << "," << max1_x << "," << min1_y << "," << max1_y
-              << "), poly2 bbox=(" << min2_x << "," << max2_x << "," << min2_y << "," << max2_y << ")" << std::endl;
-    
-    if (max1_x >= min2_x && max2_x >= min1_x && max1_y >= min2_y && max2_y >= min1_y) {
-        // Placeholder: Copy poly2 if bounding boxes overlap
-        // TODO: Replace with actual clipping (e.g., Boost.Geometry or ClipperLib)
-        result = poly2;
-        result.calculateArea();
-        result.calculatePerimeter();
-        std::cout << "Intersection valid: area=" << result.area << ", points=" << result.points.size() << std::endl;
-    } else {
-        std::cout << "Bounding boxes do not overlap" << std::endl;
+    // Convert poly1 to Boost.Geometry polygon
+    polygon_t boost_poly1;
+    for (const auto& p : poly1.points) {
+        bg::append(boost_poly1.outer(), point_t(p.x, p.y));
     }
+    if (!poly1.points.empty()) {
+        bg::append(boost_poly1.outer(), point_t(poly1.points[0].x, poly1.points[0].y)); // Close polygon
+    }
+
+    // Convert poly2 to Boost.Geometry polygon
+    polygon_t boost_poly2;
+    for (const auto& p : poly2.points) {
+        bg::append(boost_poly2.outer(), point_t(p.x, p.y));
+    }
+    if (!poly2.points.empty()) {
+        bg::append(boost_poly2.outer(), point_t(poly2.points[0].x, poly2.points[0].y)); // Close polygon
+    }
+
+    // Validate input polygons
+    if (!bg::is_valid(boost_poly1)) {
+        LOG_WARN("Poly1 is invalid, attempting to correct");
+        bg::correct(boost_poly1);
+        if (!bg::is_valid(boost_poly1)) {
+            LOG_ERROR("Poly1 remains invalid after correction");
+            return result;
+        }
+    }
+    if (!bg::is_valid(boost_poly2)) {
+        LOG_WARN("Poly2 is invalid, attempting to correct");
+        bg::correct(boost_poly2);
+        if (!bg::is_valid(boost_poly2)) {
+            LOG_ERROR("Poly2 remains invalid after correction");
+            return result;
+        }
+    }
+
+    // Log input polygons
+    std::ostringstream oss;
+    oss << "Poly1 points: ";
+    for (const auto& p : poly1.points) {
+        oss << "(" << p.x << "," << p.y << ") ";
+    }
+    oss << ", area=" << poly1.area;
+    LOG_DEBUG(oss.str());
+
+    oss.str("");
+    oss << "Poly2 points: ";
+    for (const auto& p : poly2.points) {
+        oss << "(" << p.x << "," << p.y << ") ";
+    }
+    oss << ", area=" << poly2.area;
+    LOG_DEBUG(oss.str());
+
+    // Compute intersection
+    multi_polygon_t output;
+    bg::intersection(boost_poly1, boost_poly2, output);
+
+    if (output.empty()) {
+        LOG_INFO("No intersection");
+        return result;
+    }
+
+    // Filter and collect valid polygons
+    for (const auto& result_poly : output) {
+        if (!bg::is_valid(result_poly)) {
+            LOG_WARN("Invalid result polygon, skipping");
+            continue;
+        }
+        if (bg::area(result_poly) < 1e-6) {
+            oss.str("");
+            oss << "Skipping degenerate polygon with area=" << bg::area(result_poly);
+            LOG_DEBUG(oss.str());
+            continue;
+        }
+        Polygon temp_result;
+        for (const auto& p : result_poly.outer()) {
+            temp_result.points.push_back({bg::get<0>(p), bg::get<1>(p)});
+        }
+        // Remove closing point if duplicated
+        if (!temp_result.points.empty() && temp_result.points.size() > 1 &&
+            temp_result.points.front() == temp_result.points.back()) {
+            temp_result.points.pop_back();
+        }
+        if (temp_result.points.size() >= 3) {
+            temp_result.calculateArea();
+            temp_result.calculatePerimeter();
+            if (temp_result.isValid() && temp_result.area > 1e-6) {
+                result = temp_result; // Use first valid polygon
+                oss.str("");
+                oss << "Valid intersection: area=" << result.area
+                    << ", points=" << result.points.size();
+                LOG_INFO(oss.str());
+                break; // Take first valid polygon
+            }
+        }
+    }
+
+    if (result.points.empty()) {
+        LOG_INFO("No valid intersection polygons after filtering");
+    }
+
     return result;
 }
 
 Layer GeometryProcessor::performANDOperation(const Polygon& mask_polygon, const Layer& input_layer) {
-    LOG_FUNCTION()
-    
+    LOG_FUNCTION();
+
     Layer result_layer(input_layer.layer_number, input_layer.datatype);
-    std::cout << "Performing AND operation on layer " << input_layer.layer_number 
-              << ":" << input_layer.datatype << " with " << input_layer.polygons.size() << " polygons" << std::endl;
-    
+    std::ostringstream oss;
+    oss << "Performing AND operation on layer " << input_layer.layer_number
+        << ":" << input_layer.datatype << " with " << input_layer.polygons.size() << " polygons";
+    LOG_INFO(oss.str());
+
     if (!mask_polygon.isValid() || mask_polygon.points.empty()) {
-        std::cout << "Error: Mask polygon is invalid or empty" << std::endl;
+        LOG_ERROR("Mask polygon is invalid or empty");
         return result_layer;
     }
-    
+
     auto [min_x, max_x, min_y, max_y] = getBoundingBox(mask_polygon);
-    std::cout << "Mask polygon bounding box: min_x=" << min_x << ", max_x=" << max_x
-              << ", min_y=" << min_y << ", max_y=" << max_y << std::endl;
-    std::cout << "Mask polygon points: ";
+    oss.str("");
+    oss << "Mask polygon bounding box: min_x=" << min_x << ", max_x=" << max_x
+        << ", min_y=" << min_y << ", max_y=" << max_y;
+    LOG_INFO(oss.str());
+
+    oss.str("");
+    oss << "Mask polygon points: ";
     for (const auto& p : mask_polygon.points) {
-        std::cout << "(" << p.x << "," << p.y << ") ";
+        oss << "(" << p.x << "," << p.y << ") ";
     }
-    std::cout << ", area=" << mask_polygon.area << std::endl;
+    oss << ", area=" << mask_polygon.area;
+    LOG_INFO(oss.str());
 
     for (size_t i = 0; i < input_layer.polygons.size(); ++i) {
         const auto& input_polygon = input_layer.polygons[i];
-        std::cout << "Input polygon " << i << " points: ";
-        for (const auto& p : input_polygon.points) {
-            std::cout << "(" << p.x << "," << p.y << ") ";
+        if (!input_polygon.isValid() || input_polygon.points.size() < 3) {
+            oss.str("");
+            oss << "Input polygon " << i << " is invalid or has insufficient points, skipping";
+            LOG_WARN(oss.str());
+            continue;
         }
-        std::cout << ", area=" << input_polygon.area << std::endl;
+        oss.str("");
+        oss << "Input polygon " << i << " points: ";
+        for (const auto& p : input_polygon.points) {
+            oss << "(" << p.x << "," << p.y << ") ";
+        }
+        oss << ", area=" << input_polygon.area;
+        LOG_INFO(oss.str());
+	// intersect mask polygon with input_polygon
         Polygon intersection = intersectPolygons(mask_polygon, input_polygon);
-        if (intersection.isValid()) {
+        // check if intersection is valid
+        if (intersection.isValid() && !intersection.points.empty() && intersection.area > 1e-11) {
             result_layer.polygons.push_back(intersection);
-            std::cout << "Added intersection polygon " << i << " with area=" << intersection.area << std::endl;
+            oss.str("");
+            oss << "Added intersection polygon " << i << " with area=" << intersection.area;
+            LOG_INFO(oss.str());
         } else {
-            std::cout << "Intersection " << i << " discarded: invalid polygon" << std::endl;
+            oss.str("");
+            oss << "Intersection " << i << " discarded: invalid or empty polygon";
+            LOG_INFO(oss.str());
         }
     }
-    std::cout << "AND operation resulted in " << result_layer.polygons.size() << " polygons" << std::endl;
+
+    oss.str("");
+    oss << "AND operation resulted in " << result_layer.polygons.size() << " polygons";
+    LOG_INFO(oss.str());
     if (result_layer.polygons.empty()) {
-        std::cout << "Warning: No polygons resulted from AND operation for layer "
-                  << input_layer.layer_number << ":" << input_layer.datatype << std::endl;
+        oss.str("");
+        oss << "No polygons resulted from AND operation for layer "
+            << input_layer.layer_number << ":" << input_layer.datatype;
+        LOG_WARN(oss.str());
     }
     return result_layer;
 }

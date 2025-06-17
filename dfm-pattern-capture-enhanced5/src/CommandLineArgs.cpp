@@ -16,7 +16,7 @@ void CommandLineArgs::parse(int argc, char* argv[]) {
     LOG_FUNCTION()
     
     static struct option long_options[] = {
-        {"layout_file", required_argument, nullptr, 'l'}, // Changed 'f' to 'l'
+        {"layout_file", required_argument, nullptr, 'l'},
         {"mask_layer_number", required_argument, nullptr, 'm'},
         {"mask_layer_datatype", required_argument, nullptr, 'd'},
         {"input_layers", required_argument, nullptr, 'i'},
@@ -24,7 +24,7 @@ void CommandLineArgs::parse(int argc, char* argv[]) {
         {nullptr, 0, nullptr, 0}
     };
 
-    std::cout << "Raw arguments: ";
+    std::cout << "Parsing command-line arguments: ";
     for (int i = 0; i < argc; ++i) {
         std::cout << argv[i] << " ";
     }
@@ -83,11 +83,15 @@ void CommandLineArgs::parse(int argc, char* argv[]) {
         throw std::runtime_error("Missing required arguments");
     }
 
-    std::cout << "Main: Input layers: ";
+    std::cout << "Parsed arguments summary:" << std::endl;
+    std::cout << "  Layout file: " << layout_file << std::endl;
+    std::cout << "  Mask layer: " << mask_layer_number << ":" << mask_layer_datatype << std::endl;
+    std::cout << "  Input layers: ";
     for (const auto& [layer, dt] : input_layers) {
         std::cout << layer << ":" << dt << " ";
     }
     std::cout << std::endl;
+    std::cout << "  Database name: " << db_name << std::endl;
 }
 
 std::vector<std::pair<int, int>> CommandLineArgs::parseInputLayers(const std::string& input_layers_str) {
