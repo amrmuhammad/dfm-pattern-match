@@ -16,8 +16,8 @@ Makefile
 install_manifest.txt
 
 # Generated files
-spm.gds
-*.gds
+#spm.gds
+#*.gds
 log.txt
 
 # Temporary files
