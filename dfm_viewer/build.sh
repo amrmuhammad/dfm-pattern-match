@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ~/dev/dfm_pattern_match4/dfm_viewer/build
+cd ./dfm_viewer/build
 rm -rf *
 
 cmake ..

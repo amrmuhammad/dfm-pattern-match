@@ -1,4 +1,5 @@
 #include "DatabaseManager.h"
+#include "Logging.h"
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
@@ -22,9 +23,14 @@ void DatabaseManager::setErrorCallback(ErrorCallback callback) {
     error_callback_ = std::move(callback);
 }
 
-void DatabaseManager::reportError(const std::string& message) {
-    LOG_ERROR(message);
-    if (error_callback_) error_callback_(message);
+void DatabaseManager::reportError(const std::string& message, const std::string& query) {
+    std::ostringstream oss;
+    oss << message;
+    if (!query.empty()) {
+        oss << " | Query: " << query;
+    }
+    LOG_ERROR(oss.str());
+    if (error_callback_) error_callback_(oss.str());
 }
 
 bool DatabaseManager::isConnected() const {
@@ -65,9 +71,11 @@ bool DatabaseManager::createDatabaseIfNotExists() {
                                " port=" + port_;
         pqxx::connection temp_conn(conn_str);
         pqxx::work txn(temp_conn);
-        pqxx::result res = txn.exec("SELECT 1 FROM pg_database WHERE datname = '" + db_name_ + "'");
+        std::string query = "SELECT 1 FROM pg_database WHERE datname = '" + db_name_ + "'";
+        pqxx::result res = txn.exec(query);
         if (res.empty()) {
-            txn.exec0("CREATE DATABASE \"" + db_name_ + "\"");
+            query = "CREATE DATABASE \"" + db_name_ + "\"";
+            txn.exec0(query);
             LOG_INFO("Created database: " + db_name_);
             txn.commit();
         }
@@ -82,9 +90,10 @@ bool DatabaseManager::createTables() {
     LOG_FUNCTION();
     if (!isConnected() && !connect()) return false;
 
+    std::string query;
     try {
         pqxx::work txn(*conn_);
-        txn.exec0(R"(
+        query = R"(
             CREATE TABLE IF NOT EXISTS patterns (
                 id SERIAL PRIMARY KEY,
                 pattern_hash VARCHAR(64) UNIQUE,
@@ -94,8 +103,9 @@ bool DatabaseManager::createTables() {
                 layout_file_name VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        )");
-        txn.exec0(R"(
+        )";
+        txn.exec0(query);
+        query = R"(
             CREATE TABLE IF NOT EXISTS pattern_geometries (
                 id SERIAL PRIMARY KEY,
                 pattern_id INTEGER REFERENCES patterns(id),
@@ -106,12 +116,13 @@ bool DatabaseManager::createTables() {
                 area DOUBLE PRECISION,
                 perimeter DOUBLE PRECISION
             )
-        )");
+        )";
+        txn.exec0(query);
         txn.commit();
         LOG_INFO("Created tables in database: " + db_name_);
         return true;
     } catch (const std::exception& e) {
-        reportError("Failed to create tables: " + std::string(e.what()));
+        reportError("Failed to create tables: " + std::string(e.what()), query);
         return false;
     }
 }
@@ -120,24 +131,24 @@ bool DatabaseManager::storePattern(const MultiLayerPattern& pattern, const std::
     LOG_FUNCTION();
     if (!isConnected() && !connect()) return false;
 
-    pqxx::work txn(*conn_);
     try {
-        int pattern_id = insertPatternMetadata(pattern, layout_file_name);
+        pqxx::work txn(*conn_);
+        int pattern_id = insertPatternMetadata(txn, pattern, layout_file_name);
         if (pattern_id < 0) throw std::runtime_error("Failed to insert pattern metadata");
-        if (!insertPatternGeometries(pattern_id, pattern))
+        if (!insertPatternGeometries(txn, pattern_id, pattern))
             throw std::runtime_error("Failed to insert pattern geometries");
         txn.commit();
         LOG_INFO("Stored pattern: " + pattern.pattern_id);
         return true;
     } catch (const std::exception& e) {
         reportError("Error storing pattern: " + std::string(e.what()));
-        txn.abort();
         return false;
     }
 }
 
-int DatabaseManager::insertPatternMetadata(const MultiLayerPattern& pattern, const std::string& layout_file_name) {
+int DatabaseManager::insertPatternMetadata(pqxx::work& txn, const MultiLayerPattern& pattern, const std::string& layout_file_name) {
     LOG_FUNCTION();
+    std::string query;
     try {
         std::ostringstream layers_stream;
         layers_stream << "[";
@@ -149,35 +160,34 @@ int DatabaseManager::insertPatternMetadata(const MultiLayerPattern& pattern, con
         layers_stream << "]";
         std::string layers_str = layers_stream.str();
 
-        pqxx::work txn(*conn_);
-        pqxx::result res = txn.exec_params(
-            "INSERT INTO patterns (pattern_hash, mask_layer_number, mask_layer_datatype, input_layers, layout_file_name) "
-            "VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING id",
+        query = "INSERT INTO patterns (pattern_hash, mask_layer_number, mask_layer_datatype, input_layers, layout_file_name) "
+                "VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING id";
+        pqxx::result res = txn.exec_params(query,
             pattern.pattern_id, pattern.mask_layer_number, pattern.mask_layer_datatype,
             layers_str, layout_file_name);
         if (res.empty()) throw std::runtime_error("No ID returned");
         int pattern_id = res[0][0].as<int>();
-        txn.commit();
         LOG_INFO("Inserted pattern with ID: " + std::to_string(pattern_id));
         return pattern_id;
     } catch (const std::exception& e) {
-        reportError("Error inserting pattern metadata: " + std::string(e.what()));
+        reportError("Error inserting pattern metadata: " + std::string(e.what()), query);
         return -1;
     }
 }
 
-bool DatabaseManager::insertPatternGeometries(int pattern_id, const MultiLayerPattern& pattern) {
+bool DatabaseManager::insertPatternGeometries(pqxx::work& txn, int pattern_id, const MultiLayerPattern& pattern) {
     LOG_FUNCTION();
     for (const auto& layer : pattern.input_layers) {
         for (const auto& polygon : layer.polygons) {
-            if (!insertPolygon(pattern_id, layer.layer_number, layer.datatype, polygon)) return false;
+            if (!insertPolygon(txn, pattern_id, layer.layer_number, layer.datatype, polygon)) return false;
         }
     }
-    return insertPolygon(pattern_id, pattern.mask_layer_number, pattern.mask_layer_datatype, pattern.mask_polygon);
+    return insertPolygon(txn, pattern_id, pattern.mask_layer_number, pattern.mask_layer_datatype, pattern.mask_polygon);
 }
 
-bool DatabaseManager::insertPolygon(int pattern_id, int layer_number, int datatype, const Polygon& polygon) {
+bool DatabaseManager::insertPolygon(pqxx::work& txn, int pattern_id, int layer_number, int datatype, const Polygon& polygon) {
     LOG_FUNCTION();
+    std::string query;
     try {
         std::ostringstream json_stream;
         json_stream << std::fixed << std::setprecision(2) << "[";
@@ -188,17 +198,15 @@ bool DatabaseManager::insertPolygon(int pattern_id, int layer_number, int dataty
         json_stream << "]";
         std::string json_str = json_stream.str();
 
-        pqxx::work txn(*conn_);
-        txn.exec_params(
-            "INSERT INTO pattern_geometries "
-            "(pattern_id, layer_number, datatype, geometry_type, coordinates, area, perimeter) "
-            "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)",
+        query = "INSERT INTO pattern_geometries "
+                "(pattern_id, layer_number, datatype, geometry_type, coordinates, area, perimeter) "
+                "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)";
+        txn.exec_params(query,
             pattern_id, layer_number, datatype, "polygon", json_str, polygon.area, polygon.perimeter);
-        txn.commit();
         LOG_DEBUG("Inserted polygon for layer " + std::to_string(layer_number) + ":" + std::to_string(datatype));
         return true;
     } catch (const std::exception& e) {
-        reportError("Error inserting polygon: " + std::string(e.what()));
+        reportError("Error inserting polygon: " + std::string(e.what()), query);
         return false;
     }
 }
@@ -208,11 +216,13 @@ std::vector<Pattern> DatabaseManager::getPatterns() {
     std::vector<Pattern> patterns;
     if (!isConnected() && !connect()) return patterns;
 
+    std::string query;
     try {
         pqxx::work txn(*conn_);
-        pqxx::result res = txn.exec("SELECT id, pattern_hash, mask_layer_number, mask_layer_datatype, "
-                                    "input_layers::text, layout_file_name, created_at "
-                                    "FROM patterns ORDER BY created_at DESC");
+        query = "SELECT id, pattern_hash, mask_layer_number, mask_layer_datatype, "
+                "input_layers::text, layout_file_name, created_at "
+                "FROM patterns ORDER BY created_at DESC";
+        pqxx::result res = txn.exec(query);
         for (const auto& row : res) {
             patterns.push_back({
                 row[0].as<int>(),
@@ -227,7 +237,7 @@ std::vector<Pattern> DatabaseManager::getPatterns() {
         LOG_INFO("Retrieved " + std::to_string(patterns.size()) + " patterns");
         return patterns;
     } catch (const std::exception& e) {
-        reportError("Error retrieving patterns: " + std::string(e.what()));
+        reportError("Error retrieving patterns: " + std::string(e.what()), query);
         return patterns;
     }
 }
@@ -237,11 +247,14 @@ std::vector<Geometry> DatabaseManager::getGeometries(int pattern_id) {
     std::vector<Geometry> geometries;
     if (!isConnected() && !connect()) return geometries;
 
+    std::string query;
     try {
         pqxx::work txn(*conn_);
-        std::string query = "SELECT id, pattern_id, layer_number, datatype, geometry_type, "
-                            "coordinates::text, area, perimeter FROM pattern_geometries";
-        if (pattern_id >= 0) query += " WHERE pattern_id = " + std::to_string(pattern_id);
+        query = "SELECT id, pattern_id, layer_number, datatype, geometry_type, "
+                "coordinates::text, area, perimeter FROM pattern_geometries";
+        if (pattern_id >= 0) {
+            query += " WHERE pattern_id = " + std::to_string(pattern_id);
+        }
         pqxx::result res = txn.exec(query);
         for (const auto& row : res) {
             geometries.push_back({
@@ -258,7 +271,7 @@ std::vector<Geometry> DatabaseManager::getGeometries(int pattern_id) {
         LOG_INFO("Retrieved " + std::to_string(geometries.size()) + " geometries");
         return geometries;
     } catch (const std::exception& e) {
-        reportError("Error retrieving geometries: " + std::string(e.what()));
+        reportError("Error retrieving geometries: " + std::string(e.what()), query);
         return geometries;
     }
 }
