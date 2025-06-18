@@ -1,10 +1,36 @@
 QT += core gui widgets
 CONFIG += c++17
-SOURCES += src/main.cpp src/mainwindow.cpp src/databaseviewer.cpp src/gdsviewer.cpp src/patterncapture.cpp \
-           ../shared/LayoutFileReader.cpp \
-           ../shared/Geometry.cpp
-HEADERS += src/mainwindow.h src/databaseviewer.h src/gdsviewer.h src/patterncapture.h \
-           ../shared/LayoutFileReader.h \
-           ../shared/Geometry.h
-LIBS += -lpqxx -lpq
-INCLUDEPATH += /usr/include /usr/include/postgresql /home/amrmuhammad/dev/dfm_pattern_match4/shared
+
+TARGET = DFMPatternViewer
+TEMPLATE = app
+
+SOURCES += \
+    src/main.cpp \
+    src/mainwindow.cpp \
+    src/databaseviewer.cpp \
+    src/gdsviewer.cpp \
+    src/patterncapture.cpp \
+    ../shared/Geometry.cpp \
+    ../shared/LayoutFileReader.cpp \
+    ../shared/Logging.cpp \
+    ../shared/DatabaseManager.cpp
+
+HEADERS += \
+    src/mainwindow.h \
+    src/databaseviewer.h \
+    src/gdsviewer.h \
+    src/patterncapture.h \
+    src/ZoomEventFilter.h \
+    ../shared/Geometry.h \
+    ../shared/LayoutFileReader.h \
+    ../shared/Logging.h \
+    ../shared/DatabaseManager.h
+
+INCLUDEPATH += \
+    $$PWD/../shared \
+    /usr/include \
+    /usr/include/postgresql
+
+LIBS += -L/usr/lib -lpqxx -lpq
+
+DEPENDPATH += $$PWD/src $$PWD/../shared

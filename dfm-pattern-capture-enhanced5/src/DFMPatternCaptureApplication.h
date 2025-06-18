@@ -2,7 +2,7 @@
 #define DFM_PATTERN_CAPTURE_APPLICATION_H
 
 #include "CommandLineArgs.h"
-#include "DatabaseManager.h"
+#include "../shared/DatabaseManager.h"
 #include "LayoutFileReader.h"
 
 class DFMPatternCaptureApplication {

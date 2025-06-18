@@ -1,0 +1,71 @@
+# Build directories and artifacts
+build/
+cmake-build-*/
+*.o
+*.obj
+*.exe
+*.out
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.a
+*.so
+*.dylib
+*.lib
+install_manifest.txt
+
+# Generated files
+spm.gds
+*.gds
+log.txt
+
+# Temporary files
+*~
+*.swp
+*.tmp
+*.bak
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.pro.user
+*.creator
+*.config
+*.files
+*.includes
+QtCreator.ini
+*.kdev4
+.kdev4/
+
+# Sensitive data
+.env
+*.pgpass
+credentials.json
+secrets/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Python-related (if applicable)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Node.js-related (if applicable)
+node_modules/
+npm-debug.log
+
+# Documentation
+docs/_build/
+*.pdf
+
+# Coverage and profiling
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata

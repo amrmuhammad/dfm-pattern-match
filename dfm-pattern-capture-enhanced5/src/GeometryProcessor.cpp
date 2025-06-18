@@ -59,25 +59,38 @@ Polygon GeometryProcessor::intersectPolygons(const Polygon& poly1, const Polygon
     if (!poly2.points.empty()) {
         bg::append(boost_poly2.outer(), point_t(poly2.points[0].x, poly2.points[0].y)); // Close polygon
     }
-
-    // Validate input polygons
-    if (!bg::is_valid(boost_poly1)) {
-        LOG_WARN("Poly1 is invalid, attempting to correct");
+	///////////////////////////////////////////////////////////////
+    // Validating input polygons
+    std::string reason;
+    if (!bg::is_valid(boost_poly1, reason)) {
+    	std::ostringstream oss;
+    	oss << "Poly1 is invalid, reason: " <<  reason << " , attempting to correct...";
+        LOG_WARN(oss.str());
         bg::correct(boost_poly1);
-        if (!bg::is_valid(boost_poly1)) {
-            LOG_ERROR("Poly1 remains invalid after correction");
+        if (!bg::is_valid(boost_poly1, reason)) {
+        	oss.str("Poly1 remains invalid after correction, reason: ");
+        	oss << reason;
+            LOG_ERROR(oss.str());
             return result;
+        } else {
+          // TODO: add logging for polygon coordinates after correction
         }
     }
-    if (!bg::is_valid(boost_poly2)) {
-        LOG_WARN("Poly2 is invalid, attempting to correct");
+    if (!bg::is_valid(boost_poly2, reason)) {
+    	std::ostringstream oss;
+    	oss << "Poly2 is invalid, reason: " <<  reason << " , attempting to correct...";
+        LOG_WARN(oss.str());
         bg::correct(boost_poly2);
-        if (!bg::is_valid(boost_poly2)) {
-            LOG_ERROR("Poly2 remains invalid after correction");
+        if (!bg::is_valid(boost_poly2, reason)) {
+        	oss.str("Poly1 remains invalid after correction, reason: ");
+        	oss << reason;
+            LOG_ERROR(oss.str());
             return result;
+        } else {
+          // TODO: add logging for polygon coordinates after correction
         }
     }
-
+	///////////////////////////////////////////////////////////////
     // Log input polygons
     std::ostringstream oss;
     oss << "Poly1 points: ";

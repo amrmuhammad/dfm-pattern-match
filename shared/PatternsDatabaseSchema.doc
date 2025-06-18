@@ -1,0 +1,19 @@
+CREATE TABLE patterns (
+    id SERIAL PRIMARY KEY,
+    pattern_hash VARCHAR(64) UNIQUE,
+    mask_layer_number INTEGER,
+    mask_layer_datatype INTEGER,
+    input_layers JSONB,
+    layout_file_name VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE pattern_geometries (
+    id SERIAL PRIMARY KEY,
+    pattern_id INTEGER REFERENCES patterns(id),
+    layer_number INTEGER,
+    datatype INTEGER,
+    geometry_type VARCHAR(20),
+    coordinates JSONB,
+    area DOUBLE PRECISION,
+    perimeter DOUBLE PRECISION
+);

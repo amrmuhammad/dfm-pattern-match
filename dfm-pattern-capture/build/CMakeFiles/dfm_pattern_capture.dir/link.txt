@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/dfm_pattern_capture.dir/link.d CMakeFiles/dfm_pattern_capture.dir/src/main.cpp.o -o dfm_pattern_capture  -lpq

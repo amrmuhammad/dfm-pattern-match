@@ -7,7 +7,8 @@
 #include <QPushButton>
 #include <QFileDialog>
 #include <QComboBox>
-#include <LayoutFileReader.h>
+#include <QProgressDialog>
+#include "LayoutFileReader.h"
 
 class GdsViewer : public QWidget {
     Q_OBJECT
@@ -26,7 +27,8 @@ private:
     QPushButton *loadButton;
     QComboBox *layerCombo;
     LayoutFileReader *reader;
-    std::vector<int> availableLayers;
+    std::vector<std::pair<int, int>> availableLayers;
+    QProgressDialog *progressDialog;
 };
 
 #endif

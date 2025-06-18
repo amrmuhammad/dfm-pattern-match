@@ -29,12 +29,13 @@ else()
     message(FATAL_ERROR "Boost not found")
 endif()
 
-# Find PostgreSQL
-find_package(PostgreSQL REQUIRED)
-if(PostgreSQL_FOUND)
-    message(STATUS "PostgreSQL found: ${PostgreSQL_INCLUDE_DIRS}")
+# Find libpqxx
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PQXX REQUIRED libpqxx)
+if(PQXX_FOUND)
+    message(STATUS "libpqxx found: ${PQXX_INCLUDE_DIRS}")
 else()
-    message(FATAL_ERROR "PostgreSQL not found")
+    message(FATAL_ERROR "libpqxx not found")
 endif()
 
 # Define source files for dfm_pattern_capture
@@ -42,12 +43,12 @@ set(DFM_PATTERN_CAPTURE_SOURCES
     src/main.cpp
     src/CommandLineArgs.cpp
     src/GeometryProcessor.cpp
-    src/DatabaseManager.cpp
     src/Utils.cpp
     src/DFMPatternCaptureApplication.cpp
     ../shared/Geometry.cpp
     ../shared/LayoutFileReader.cpp
     ../shared/Logging.cpp
+    ../shared/DatabaseManager.cpp
 )
 
 # Define source files for generate_test_gds
@@ -61,12 +62,12 @@ set(GENERATE_TEST_GDS_SOURCES
 add_executable(dfm_pattern_capture ${DFM_PATTERN_CAPTURE_SOURCES})
 target_include_directories(dfm_pattern_capture PRIVATE
     ${Boost_INCLUDE_DIRS}
-    ${PostgreSQL_INCLUDE_DIRS}
+    ${PQXX_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/../shared
 )
 target_link_libraries(dfm_pattern_capture PRIVATE
     Boost::headers
-    PostgreSQL::PostgreSQL
+    ${PQXX_LIBRARIES}
 )
 target_compile_options(dfm_pattern_capture PRIVATE
     -Wall -Wextra -O2

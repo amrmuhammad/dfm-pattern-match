@@ -13,6 +13,9 @@ EXPECTED_LOG_FILE="${TEST_DIR}/spm_expected_log.txt"
 DB_OUTPUT_FILE="${TEST_DIR}/spm_db_output.txt"
 EXPECTED_DB_FILE="${TEST_DIR}/spm_expected_db.txt"
 
+export DFM_LOGGING=1
+export DFM_LOG_LEVEL=INFO
+
 # Step 1: Drop and recreate the database
 echo "Dropping and recreating database: ${DB_NAME}"
 psql -d postgres -c "DROP DATABASE IF EXISTS ${DB_NAME};" || {

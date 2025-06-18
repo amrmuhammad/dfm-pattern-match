@@ -1,13 +1,22 @@
 #include "DFMPatternCaptureApplication.h"
 #include "LayoutFileReader.h"
 #include "GeometryProcessor.h"
-#include "DatabaseManager.h"
+#include "../shared/DatabaseManager.h"
 #include "Utils.h"
 #include <sstream>
 #include <Logging.h>
+#include <cstdlib>
 
 DFMPatternCaptureApplication::DFMPatternCaptureApplication(const CommandLineArgs& args)
-    : args_(args), db_manager_(args.db_name) {}
+    : args_(args), db_manager_(args.db_name, "", "", "localhost", "5432",
+                               [](const std::string& error) {
+                                   LOG_ERROR("Database error: " + error);
+                               }) {
+    LOG_FUNCTION();
+    if (!db_manager_.createDatabaseIfNotExists() || !db_manager_.connect() || !db_manager_.createTables()) {
+        throw std::runtime_error("Failed to initialize database connection");
+    }
+}
 
 void DFMPatternCaptureApplication::load_mask_layer(Layer &mask_layer, LayoutFileReader &reader) {
     LOG_FUNCTION();
@@ -169,7 +178,7 @@ unsigned int DFMPatternCaptureApplication::process_mask_layer_polygons(Layer &ma
 void DFMPatternCaptureApplication::store_captured_patterns_in_database(std::vector<MultiLayerPattern> &captured_patterns, int &successful, int &failed) {
     LOG_FUNCTION();
     std::ostringstream oss;
-    oss << "Pattern input_layers size: " << captured_patterns.size();
+    oss << "# of Captured patterns from layout file =  " << captured_patterns.size();
     LOG_INFO(oss.str());
 
     for (size_t i = 0; i < captured_patterns.size(); ++i) {
@@ -182,7 +191,6 @@ void DFMPatternCaptureApplication::store_captured_patterns_in_database(std::vect
                 break;
             }
         }
-
         if (has_valid_input) {
             try {
                 if (db_manager_.storePattern(current_pattern, args_.layout_file)) {
@@ -198,14 +206,14 @@ void DFMPatternCaptureApplication::store_captured_patterns_in_database(std::vect
                 }
             } catch (const std::exception& e) {
                 oss.str("");
-                oss << "Failed to store pattern: " << e.what();
+                oss << "Error: " << e.what();
                 LOG_ERROR(oss.str());
                 failed++;
             }
         } else {
             oss.str("");
-            oss << "No valid input layers to store for pattern: " << current_pattern.pattern_id;
-            LOG_WARN(oss.str());
+            oss << "Error: All layers empty for pattern # " << current_pattern.pattern_id;
+            LOG_ERROR(oss.str());
             failed++;
         }
     }
@@ -214,11 +222,11 @@ void DFMPatternCaptureApplication::store_captured_patterns_in_database(std::vect
 void DFMPatternCaptureApplication::run() {
     LOG_FUNCTION();
     LOG_INFO("===========================================================================================");
-    LOG_INFO("=============== DFMPatternCaptureApplication: Reading Layout file started =================");
+    LOG_INFO("=============== Starting DFMPatternCaptureApplication: Reading Layout file started ===");
     LOG_INFO("===========================================================================================");
     
     try {
-        LOG_INFO("===========================================================================================");
+        LOG_INFO("====================================================================================");
         LayoutFileReader reader(args_.layout_file);
         auto available_layers = reader.getAvailableLayersAndDatatypes();
         LOG_INFO("Available layers in " + args_.layout_file + ":");
@@ -227,44 +235,45 @@ void DFMPatternCaptureApplication::run() {
             oss << "  Layer: " << layer << ":" << dt;
             LOG_INFO(oss.str());
         }
-        LOG_INFO("===========================================================================================");
-        
         std::ostringstream oss;
-        oss << "Input layers to process: ";
+        oss << "Input layers: ";
         for (const auto& [layer_num, datatype] : args_.input_layers) {
             oss << layer_num << ":" << datatype << " ";
         }
+        oss << std::endl;
         LOG_INFO(oss.str());
-        LOG_INFO("===========================================================================================");
         
         Layer mask_layer(args_.mask_layer_number, args_.mask_layer_datatype);
         std::vector<Layer> input_layers;
         
         load_mask_layer(mask_layer, reader);
         load_input_layers(input_layers, reader);
-        LOG_INFO("===========================================================================================");
-        LOG_INFO("===============================Processing Mask layer polygons started =====================");
         
-        std::vector<MultiLayerPattern> captured_patterns;
-        process_mask_layer_polygons(mask_layer, input_layers, captured_patterns);        
-        LOG_INFO("===============================Processing Mask layer polygons completed ====================");
+        LOG_INFO("=============================================================");
+        LOG_INFO("Started processing mask pattern polygons ===");
         
-        LOG_INFO("===============================Storing Captured patterns in database started ===============");
+        std::vector<MultiLayerPattern> patterns;
+        process_mask_layer_polygons(mask_layer, input_layers, patterns);
+        
+        LOG_INFO("Completed processing mask pattern polygons ===");
+        
+        LOG_INFO("Started storing patterns ===");
         int successful = 0, failed = 0;
-        store_captured_patterns_in_database(captured_patterns, successful, failed);
+        store_captured_patterns_in_database(patterns, successful, failed);
         
-        LOG_INFO("===============================Storing Captured patterns in database Completed ===============");
+        LOG_INFO("Completed storing patterns ===");
         
         oss.str("");
-        oss << "\n========================================\n";
-        oss << "Processing Summary\n";
-        oss << "========================================\n";
+        oss << "\n";
+        oss << "======" << "\n";
+        oss << "Processing Completed" << "\n";
+        oss << "=======" << "\n";
         oss << "Total patterns processed: " << (successful + failed) << "\n";
-        oss << "Successfully stored: " << successful << "\n";
-        oss << "Failed: " << failed << "\n";
-        oss << "========================================\n";
+        oss << "Successfully stored patterns: " << successful << "\n";
+        oss << "Failed patterns: " << failed << "\n";
+        oss << "=======" << std::endl;
         LOG_INFO(oss.str());
     } catch (const std::exception& e) {
-        LOG_ERROR("Application error: " + std::string(e.what()));
+        LOG_ERROR("Error occurred in application: " + std::string(e.what()));
     }
 }
