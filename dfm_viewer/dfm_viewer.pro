@@ -9,7 +9,8 @@ SOURCES += \
     src/mainwindow.cpp \
     src/databaseviewer.cpp \
     src/gdsviewer.cpp \
-    src/patterncapture.cpp \
+-   src/patterncapture.cpp \
++   src/batchpatterncapture.cpp \
     ../shared/Geometry.cpp \
     ../shared/LayoutFileReader.cpp \
     ../shared/Logging.cpp \
@@ -19,7 +20,8 @@ HEADERS += \
     src/mainwindow.h \
     src/databaseviewer.h \
     src/gdsviewer.h \
-    src/patterncapture.h \
+-   src/patterncapture.h \
++   src/batchpatterncapture.h \
     src/ZoomEventFilter.h \
     ../shared/Geometry.h \
     ../shared/LayoutFileReader.h \

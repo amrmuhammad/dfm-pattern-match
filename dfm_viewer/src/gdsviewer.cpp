@@ -6,9 +6,10 @@
 #include <QCoreApplication>
 #include <QThread>
 
-GdsViewer::GdsViewer(QWidget *parent) : QWidget(parent), reader(nullptr) {
+GdsViewer::GdsViewer(QWidget *parent) : QMainWindow(parent), reader(nullptr) {
     LOG_FUNCTION();
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    centralWidget = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
     loadButton = new QPushButton("Load GDSII/OASIS File", this);
     layerCombo = new QComboBox(this);
     graphicsView = new QGraphicsView(this);
@@ -24,6 +25,7 @@ GdsViewer::GdsViewer(QWidget *parent) : QWidget(parent), reader(nullptr) {
     layout->addWidget(layerCombo);
     layout->addWidget(graphicsView);
 
+    setCentralWidget(centralWidget);
     graphicsView->installEventFilter(new ZoomEventFilter(graphicsView, this));
 
     connect(loadButton, &QPushButton::clicked, this, &GdsViewer::loadGdsFile);

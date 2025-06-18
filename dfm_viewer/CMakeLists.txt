@@ -7,20 +7,16 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 COMPONENTS Widgets Core REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(PQXX REQUIRED libpqxx)
-
-include_directories(${PQXX_INCLUDE_DIRS})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../shared)
+pkg_check_modules(LIBPQXX REQUIRED libpqxx)
 
 set(SOURCES
     src/main.cpp
     src/mainwindow.cpp
     src/databaseviewer.cpp
     src/gdsviewer.cpp
-    src/patterncapture.cpp
+    src/batchpatterncapture.cpp
     ../shared/Geometry.cpp
     ../shared/LayoutFileReader.cpp
     ../shared/Logging.cpp
@@ -31,7 +27,7 @@ set(HEADERS
     src/mainwindow.h
     src/databaseviewer.h
     src/gdsviewer.h
-    src/patterncapture.h
+    src/batchpatterncapture.h
     src/ZoomEventFilter.h
     ../shared/Geometry.h
     ../shared/LayoutFileReader.h
@@ -39,12 +35,26 @@ set(HEADERS
     ../shared/DatabaseManager.h
 )
 
-add_executable(DFMPatternViewer ${SOURCES} ${HEADERS})
-
-target_link_libraries(DFMPatternViewer PRIVATE
-    Qt5::Widgets
-    Qt5::Core
-    ${PQXX_LIBRARIES}
+add_executable(${PROJECT_NAME}
+    ${SOURCES}
+    ${HEADERS}
 )
 
-install(TARGETS DFMPatternViewer DESTINATION bin)
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/../shared
+    /usr/include
+    /usr/include/postgresql
+    ${LIBPQXX_INCLUDE_DIRS}
+)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    Qt5::Core
+    Qt5::Gui
+    Qt5::Widgets
+    ${LIBPQXX_LIBRARIES}
+    -lpq
+)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    ${LIBPQXX_CFLAGS_OTHER}
+)
