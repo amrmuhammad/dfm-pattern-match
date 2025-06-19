@@ -19,7 +19,8 @@ public:
 
 private slots:
     void openBatchPatternCapture();
-    void connectToDatabase(); // Action for Connect to DB
+    void connectToDatabase();
+    void createNewDatabase(); // New slot for New Database action
     void loadSettings();
     void saveSettings();
 
@@ -31,7 +32,8 @@ private:
     QMenu *fileMenu;
     QMenu *toolsMenu;
     QAction *exitAction;
-    QAction *connectDbAction; // New action
+    QAction *connectDbAction;
+    QAction *newDbAction; // New action
     QAction *batchPatternCaptureAction;
     QStatusBar *statusBar;
 };

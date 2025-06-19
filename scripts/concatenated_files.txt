@@ -45,6 +45,34 @@ private:
 
 #endif // BATCHPATTERNCAPTURE_H
 =====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/connectdbdialog.h
+
+#ifndef CONNECTDBDIALOG_H
+#define CONNECTDBDIALOG_H
+
+#include <QDialog>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QLabel>
+#include "databaseviewer.h"
+
+class ConnectDbDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit ConnectDbDialog(QWidget *parent = nullptr, DatabaseViewer *viewer = nullptr);
+
+private slots:
+    void tryConnect();
+
+private:
+    QLineEdit *dbNameEdit;
+    QPushButton *connectButton;
+    QLabel *errorLabel;
+    DatabaseViewer *dbViewer;
+};
+
+#endif // CONNECTDBDIALOG_H
+=====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.h
 
 #ifndef DATABASEVIEWER_H
@@ -70,6 +98,7 @@ class DatabaseViewer : public QWidget {
 public:
     explicit DatabaseViewer(QWidget *parent = nullptr);
     virtual ~DatabaseViewer();
+    bool connectToDatabase(const QString &dbName); // New method
 
 private slots:
     void configureDatabase();
@@ -161,6 +190,7 @@ public:
 
 private slots:
     void openBatchPatternCapture();
+    void connectToDatabase(); // Action for Connect to DB
     void loadSettings();
     void saveSettings();
 
@@ -172,6 +202,7 @@ private:
     QMenu *fileMenu;
     QMenu *toolsMenu;
     QAction *exitAction;
+    QAction *connectDbAction; // New action
     QAction *batchPatternCaptureAction;
     QStatusBar *statusBar;
 };
@@ -448,6 +479,60 @@ void BatchPatternCapture::saveSettings() {
     LOG_DEBUG("Saved BatchPatternCapture settings");
 }
 =====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/connectdbdialog.cpp
+
+#include "connectdbdialog.h"
+#include "Logging.h"
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+
+ConnectDbDialog::ConnectDbDialog(QWidget *parent, DatabaseViewer *viewer)
+    : QDialog(parent), dbViewer(viewer) {
+    LOG_FUNCTION();
+    setWindowTitle("Connect to Database");
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(this);
+
+    // Database name input
+    QHBoxLayout *dbLayout = new QHBoxLayout();
+    dbLayout->addWidget(new QLabel("Enter DB name: "));
+    dbNameEdit = new QLineEdit("Enter database name here", this);
+    dbLayout->addWidget(dbNameEdit);
+    mainLayout->addLayout(dbLayout);
+
+    // Error label
+    errorLabel = new QLabel("", this);
+    errorLabel->setStyleSheet("color: red;");
+    mainLayout->addWidget(errorLabel);
+
+    // Connect button
+    connectButton = new QPushButton("Connect", this);
+    mainLayout->addWidget(connectButton);
+
+    connect(connectButton, &QPushButton::clicked, this, &ConnectDbDialog::tryConnect);
+
+    setFixedSize(400, 200);
+    LOG_INFO("ConnectDbDialog initialized");
+}
+
+void ConnectDbDialog::tryConnect() {
+    LOG_FUNCTION();
+    QString dbName = dbNameEdit->text().trimmed();
+    if (dbName.isEmpty() || dbName == "Enter database name here") {
+        errorLabel->setText("Error: Please enter a valid database name.");
+        LOG_WARN("Invalid database name provided");
+        return;
+    }
+
+    if (dbViewer->connectToDatabase(dbName)) {
+        accept();
+    } else {
+        errorLabel->setText("Error: Invalid database or schema.");
+        LOG_ERROR("Failed to connect to database: " + dbName.toStdString());
+    }
+}
+=====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.cpp
 
 #include "databaseviewer.h"
@@ -465,13 +550,7 @@ Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseview
 DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
-    dbManager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
-                                    settings->value("dbPassword", "").toString().toStdString(),
-                                    settings->value("dbHost", "localhost").toString().toStdString(),
-                                    settings->value("dbPort", "5432").toString().toStdString(),
-                                    [this](const std::string& error) {
-                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                    });
+    dbManager = nullptr; // No initial database connection
 
     // Main layout with splitter
     QHBoxLayout *mainLayout = new QHBoxLayout(this);
@@ -519,15 +598,6 @@ DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
     connect(databasesList, &QListWidget::itemClicked, this, &DatabaseViewer::onDatabaseSelected);
     connect(patternsList, &QListWidget::itemClicked, this, &DatabaseViewer::onPatternSelected);
 
-    // Load initial database list
-    if (dbManager->isConnected() || dbManager->connect()) {
-        auto databases = dbManager->getAvailableDatabases();
-        for (const auto& db : databases) {
-            databasesList->addItem(QString::fromStdString(db));
-        }
-        dbManager->createTables();
-        loadPatterns();
-    }
     LOG_INFO("DatabaseViewer initialized");
 }
 
@@ -539,11 +609,47 @@ DatabaseViewer::~DatabaseViewer() {
     LOG_INFO("DatabaseViewer destroyed");
 }
 
+bool DatabaseViewer::connectToDatabase(const QString &dbName) {
+    LOG_FUNCTION();
+    patternsList->clear();
+    patternsListLabel->setText("Patterns List for database: " + dbName);
+    databasesList->clear();
+    databasesList->addItem(dbName);
+    scene->clear();
+    tableView->setModel(nullptr);
+
+    if (dbManager) {
+        dbManager->disconnect();
+        delete dbManager;
+    }
+
+    dbManager = new DatabaseManager(
+        dbName.toStdString(),
+        settings->value("dbUser", "").toString().toStdString(),
+        settings->value("dbPassword", "").toString().toStdString(),
+        settings->value("dbHost", "localhost").toString().toStdString(),
+        settings->value("dbPort", "5432").toString().toStdString(),
+        [this](const std::string& error) {
+            QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+        }
+    );
+
+    if (dbManager->connect() && dbManager->isValidSchema()) {
+        dbManager->createTables();
+        loadPatterns();
+        LOG_INFO("Connected to database: " + dbName.toStdString());
+        return true;
+    } else {
+        LOG_ERROR("Failed to connect to or validate database: " + dbName.toStdString());
+        return false;
+    }
+}
+
 void DatabaseViewer::configureDatabase() {
     LOG_FUNCTION();
     bool ok;
     QString dbName = QInputDialog::getText(this, "Database Configuration", "Database Name:",
-                                           QLineEdit::Normal, settings->value("dbName", "test_db").toString(), &ok);
+                                           QLineEdit::Normal, settings->value("dbName", "").toString(), &ok);
     if (!ok) return;
     QString user = QInputDialog::getText(this, "Database Configuration", "Username:",
                                          QLineEdit::Normal, settings->value("dbUser", "").toString(), &ok);
@@ -564,31 +670,15 @@ void DatabaseViewer::configureDatabase() {
     settings->setValue("dbHost", host);
     settings->setValue("dbPort", port);
     settings->sync();
-    LOG_INFO("Database configuration updated: dbName=" + dbName.toStdString() + ", host=" + host.toStdString());
+    LOG_INFO("Database configuration updated: dbName=" + dbName.toStdString());
 
-    dbManager->disconnect();
-    delete dbManager;
-    dbManager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
-                                    host.toStdString(), port.toStdString(),
-                                    [this](const std::string& error) {
-                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                    });
-    if (dbManager->isConnected() || dbManager->connect()) {
-        dbManager->createTables();
-        databasesList->clear();
-        auto databases = dbManager->getAvailableDatabases();
-        for (const auto& db : databases) {
-            databasesList->addItem(QString::fromStdString(db));
-        }
-        refreshPatterns();
-    }
+    connectToDatabase(dbName);
 }
 
 void DatabaseViewer::refreshPatterns() {
     LOG_FUNCTION();
     scene->clear();
     patternsList->clear();
-    patternsListLabel->setText("Patterns List for database: None");
     loadPatterns();
 }
 
@@ -596,51 +686,30 @@ void DatabaseViewer::onDatabaseSelected(QListWidgetItem *item) {
     LOG_FUNCTION();
     QString dbName = item->text();
     patternsListLabel->setText("Patterns List for database: " + dbName);
-    patternsList->clear();
-    scene->clear();
-    tableView->setModel(nullptr);
-
-    dbManager->disconnect();
-    delete dbManager;
-    dbManager = new DatabaseManager(dbName.toStdString(), settings->value("dbUser", "").toString().toStdString(),
-                                    settings->value("dbPassword", "").toString().toStdString(),
-                                    settings->value("dbHost", "localhost").toString().toStdString(),
-                                    settings->value("dbPort", "5432").toString().toStdString(),
-                                    [this](const std::string& error) {
-                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                    });
-    if (dbManager->isConnected() || dbManager->connect()) {
-        dbManager->createTables();
-        auto patterns = dbManager->getPatterns();
-        for (const auto& pattern : patterns) {
-            patternsList->addItem(QString::number(pattern.id));
-        }
-        LOG_INFO("Loaded patterns for database: " + dbName.toStdString());
-    }
+    connectToDatabase(dbName);
 }
 
 void DatabaseViewer::onPatternSelected(QListWidgetItem *item) {
     LOG_FUNCTION();
     int patternId = item->text().toInt();
     scene->clear();
-    //loadPatterns(patternId);
-}
+    tableView->setModel(nullptr);
 
-void DatabaseViewer::loadPatterns() {
-    LOG_FUNCTION();
     if (!dbManager->isConnected() && !dbManager->connect()) {
-        LOG_WARN("No database connection");
+        QMessageBox::critical(this, "Database Error", "Failed to connect to database.");
+        LOG_ERROR("Failed to connect to database");
         return;
     }
+
     try {
         auto patterns = dbManager->getPatterns();
-        auto geometries = dbManager->getGeometries();
+        auto geometries = dbManager->getGeometries(patternId);
         QStandardItemModel *model = new QStandardItemModel(this);
         model->setColumnCount(7);
         model->setHorizontalHeaderLabels({"ID", "Pattern Hash", "Mask Layer", "Input Layers", "Layout File", "Area", "Perimeter"});
 
         for (const auto& pattern : patterns) {
-            //if (patternId >= 0 && pattern.id != patternId) continue;
+            if (pattern.id != patternId) continue;
             QList<QStandardItem*> items;
             items << new QStandardItem(QString::number(pattern.id));
             items << new QStandardItem(QString::fromStdString(pattern.pattern_hash));
@@ -662,6 +731,31 @@ void DatabaseViewer::loadPatterns() {
         }
         tableView->setModel(model);
         graphicsView->fitInView(scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+        LOG_INFO("Displayed pattern ID: " + std::to_string(patternId));
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, "Database Error", QString("Query failed: %1").arg(e.what()));
+        LOG_ERROR("Database query failed: " + std::string(e.what()));
+    }
+}
+
+void DatabaseViewer::loadDatabases() {
+    LOG_FUNCTION();
+    databasesList->clear();
+    // No automatic database loading
+}
+
+void DatabaseViewer::loadPatterns() {
+    LOG_FUNCTION();
+    if (!dbManager || (!dbManager->isConnected() && !dbManager->connect())) {
+        LOG_WARN("No database connection");
+        return;
+    }
+    try {
+        auto patterns = dbManager->getPatterns();
+        patternsList->clear();
+        for (const auto& pattern : patterns) {
+            patternsList->addItem(QString::number(pattern.id));
+        }
         LOG_INFO("Loaded " + std::to_string(patterns.size()) + " patterns from database");
     } catch (const std::exception& e) {
         QMessageBox::critical(this, "Database Error", QString("Query failed: %1").arg(e.what()));
@@ -697,6 +791,7 @@ void DatabaseViewer::renderPolygon(const QString &coordinates) {
 }
 
 void DatabaseViewer::loadSettings() {
+    LOG_FUNCTION();
     // Handled by QSettings in constructor
 }
 
@@ -704,7 +799,6 @@ void DatabaseViewer::saveSettings() {
     LOG_FUNCTION();
     settings->sync();
 }
-
 =====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.cpp
 
@@ -830,6 +924,7 @@ Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.c
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
+#include "connectdbdialog.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
@@ -854,7 +949,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     // File menu
     fileMenu = new QMenu("File", this);
+    connectDbAction = new QAction("Connect to DB", this);
     exitAction = new QAction("Exit", this);
+    fileMenu->addAction(connectDbAction);
     fileMenu->addAction(exitAction);
     menuBar->addMenu(fileMenu);
 
@@ -877,13 +974,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     // Connect signals
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
+    connect(connectDbAction, &QAction::triggered, this, &MainWindow::connectToDatabase);
     connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
 
-    // Show GdsViewer by default (version 0.13)
+    // Show GdsViewer maximized and ensure MainWindow is in front
     gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
     gdsViewer->setWindowTitle("GDS/OASIS Viewer");
-    gdsViewer->resize(800, 600);
-    gdsViewer->show();
+    gdsViewer->showMaximized();
+    gdsViewer->resize(800, 600); // Fallback size
+    this->show();
+    this->raise();
+    this->activateWindow();
 
     loadSettings();
     LOG_INFO("MainWindow initialized");
@@ -909,6 +1010,13 @@ void MainWindow::openBatchPatternCapture() {
     batchPatternCapture->show();
     batchPatternCapture->raise();
     LOG_INFO("Batch PatternCapture opened");
+}
+
+void MainWindow::connectToDatabase() {
+    LOG_FUNCTION();
+    ConnectDbDialog dialog(this, dbViewer);
+    dialog.exec();
+    LOG_INFO("Connect to DB dialog closed");
 }
 
 void MainWindow::loadSettings() {
@@ -1140,6 +1248,7 @@ public:
     void disconnect();
     bool createDatabaseIfNotExists();
     bool createTables();
+    bool isValidSchema();
     bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
     std::vector<Pattern> getPatterns();
     std::vector<Geometry> getGeometries(int pattern_id = -1);
@@ -1321,6 +1430,7 @@ Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.cpp
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
+#include <set>
 
 DatabaseManager::DatabaseManager(const std::string& db_name, const std::string& user,
                                  const std::string& password, const std::string& host,
@@ -1412,6 +1522,12 @@ bool DatabaseManager::createTables() {
     try {
         pqxx::work txn(*conn_);
         query = R"(
+            CREATE TABLE IF NOT EXISTS patterns_db_version (
+                version_id VARCHAR(36) PRIMARY KEY
+            )
+        )";
+        txn.exec0(query);
+        query = R"(
             CREATE TABLE IF NOT EXISTS patterns (
                 id SERIAL PRIMARY KEY,
                 pattern_hash VARCHAR(64) UNIQUE,
@@ -1441,6 +1557,37 @@ bool DatabaseManager::createTables() {
         return true;
     } catch (const std::exception& e) {
         reportError("Failed to create tables: " + std::string(e.what()), query);
+        return false;
+    }
+}
+
+bool DatabaseManager::isValidSchema() {
+    LOG_FUNCTION();
+    if (!isConnected() && !connect()) return false;
+
+    static const std::set<std::string> valid_guids = {
+        "123e4567-e89b-12d3-a456-426614174000",
+        "123e4567-e89b-12d3-a456-426614174001"
+    };
+
+    std::string query;
+    try {
+        pqxx::work txn(*conn_);
+        query = "SELECT version_id FROM patterns_db_version";
+        pqxx::result res = txn.exec(query);
+        if (res.size() != 1) {
+            reportError("Invalid schema: patterns_db_version table must contain exactly one row");
+            return false;
+        }
+        std::string version_id = res[0][0].as<std::string>();
+        if (valid_guids.find(version_id) == valid_guids.end()) {
+            reportError("Invalid schema: version_id " + version_id + " is not recognized");
+            return false;
+        }
+        LOG_INFO("Valid schema detected with version_id: " + version_id);
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Schema validation failed: " + std::string(e.what()), query);
         return false;
     }
 }

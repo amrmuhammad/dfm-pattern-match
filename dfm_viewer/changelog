@@ -1,4 +1,10 @@
-version 0.13.1(to be implemented):
+version 0.13.2(to be implemented):
+
+add a new action - call it "New Database" - in the file menu of the DFM Patterns Database Viewer. This action will construct a new PostgreSQL database for storing the patterns. The constructed database should have a table "patterns_db_version" with a valid GUID. A valid GUID should be one of the hard-coded GUID values in the source code
+
+
+
+version 0.13.1:
 ---------------------------------
 
 I want to make the following changes to the DFM Viewer project:
