@@ -42,6 +42,7 @@ public:
     void disconnect();
     bool createDatabaseIfNotExists();
     bool createTables();
+    bool isValidSchema();
     bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
     std::vector<Pattern> getPatterns();
     std::vector<Geometry> getGeometries(int pattern_id = -1);

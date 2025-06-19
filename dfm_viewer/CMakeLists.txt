@@ -17,10 +17,12 @@ set(SOURCES
     src/databaseviewer.cpp
     src/gdsviewer.cpp
     src/batchpatterncapture.cpp
+    src/connectdbdialog.cpp
     ../shared/Geometry.cpp
     ../shared/LayoutFileReader.cpp
     ../shared/Logging.cpp
     ../shared/DatabaseManager.cpp
+    src/connectdbdialog.cpp
 )
 
 set(HEADERS
@@ -28,11 +30,13 @@ set(HEADERS
     src/databaseviewer.h
     src/gdsviewer.h
     src/batchpatterncapture.h
+    src/connectdbdialog.h
     src/ZoomEventFilter.h
     ../shared/Geometry.h
     ../shared/LayoutFileReader.h
     ../shared/Logging.h
     ../shared/DatabaseManager.h
+    
 )
 
 set(RESOURCES

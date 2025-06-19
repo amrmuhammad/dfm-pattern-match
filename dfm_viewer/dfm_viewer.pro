@@ -14,7 +14,8 @@ SOURCES += \
     ../shared/Geometry.cpp \
     ../shared/LayoutFileReader.cpp \
     ../shared/Logging.cpp \
-    ../shared/DatabaseManager.cpp
+    ../shared/DatabaseManager.cpp \
+    src/connectdbdialog.cpp
 
 HEADERS += \
     src/mainwindow.h \
@@ -26,7 +27,8 @@ HEADERS += \
     ../shared/Geometry.h \
     ../shared/LayoutFileReader.h \
     ../shared/Logging.h \
-    ../shared/DatabaseManager.h
+    ../shared/DatabaseManager.h \
+    src/connectdbdialog.h
 
 INCLUDEPATH += \
     $$PWD/../shared \

@@ -6,6 +6,7 @@
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
+#include "connectdbdialog.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
@@ -30,7 +31,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     // File menu
     fileMenu = new QMenu("File", this);
+    connectDbAction = new QAction("Connect to DB", this);
     exitAction = new QAction("Exit", this);
+    fileMenu->addAction(connectDbAction);
     fileMenu->addAction(exitAction);
     menuBar->addMenu(fileMenu);
 
@@ -53,13 +56,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     // Connect signals
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
+    connect(connectDbAction, &QAction::triggered, this, &MainWindow::connectToDatabase);
     connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
 
-    // Show GdsViewer by default (version 0.13)
+    // Show GdsViewer maximized and ensure MainWindow is in front
     gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
     gdsViewer->setWindowTitle("GDS/OASIS Viewer");
-    gdsViewer->resize(800, 600);
-    gdsViewer->show();
+    gdsViewer->showMaximized();
+    gdsViewer->resize(800, 600); // Fallback size
+    this->show();
+    this->raise();
+    this->activateWindow();
 
     loadSettings();
     LOG_INFO("MainWindow initialized");
@@ -85,6 +92,13 @@ void MainWindow::openBatchPatternCapture() {
     batchPatternCapture->show();
     batchPatternCapture->raise();
     LOG_INFO("Batch PatternCapture opened");
+}
+
+void MainWindow::connectToDatabase() {
+    LOG_FUNCTION();
+    ConnectDbDialog dialog(this, dbViewer);
+    dialog.exec();
+    LOG_INFO("Connect to DB dialog closed");
 }
 
 void MainWindow::loadSettings() {

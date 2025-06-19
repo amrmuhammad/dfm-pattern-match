@@ -1,46 +1,325 @@
 Output file: /home/amrmuhammad/dev/dfm_pattern_match4/scripts/concatenated_files.txt
 
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/batchpatterncapture.h
+
+#ifndef BATCHPATTERNCAPTURE_H
+#define BATCHPATTERNCAPTURE_H
+
+#include <QMainWindow>
+#include <QSettings>
+#include <QProcess>
+
+class QLineEdit;
+class QPushButton;
+class QTextEdit;
+
+class BatchPatternCapture : public QMainWindow {
+    Q_OBJECT
+public:
+    explicit BatchPatternCapture(QWidget *parent = nullptr);
+
+private slots:
+    void browseLayoutFile();
+    void runPatternCapture();
+    void cancelProcess();
+    void readProcessOutput();
+    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
+
+private:
+    bool validateInputs();
+    void loadSettings();
+    void saveSettings();
+
+    QSettings *settings;
+    QLineEdit *layoutFileEdit;
+    QPushButton *browseButton;
+    QLineEdit *maskLayerEdit;
+    QLineEdit *inputLayersEdit;
+    QLineEdit *dbNameEdit;
+    QPushButton *runButton;
+    QPushButton *cancelButton;
+    QTextEdit *logText;
+    QProcess *process;
+    QString programPath;
+};
+
+#endif // BATCHPATTERNCAPTURE_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.h
+
+#ifndef DATABASEVIEWER_H
+#define DATABASEVIEWER_H
+
+#include <QWidget>
+#include <QListWidget>
+#include <QLabel>
+#include <QSplitter>
+#include <QTabWidget>
+#include <QTableView>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QPushButton>
+#include <QSettings>
+#include <QSqlQueryModel>
+#include "../shared/DatabaseManager.h"
+
+class DatabaseViewer : public QWidget {
+    Q_OBJECT
+public:
+    explicit DatabaseViewer(QWidget *parent = nullptr);
+    virtual ~DatabaseViewer();
+
+private slots:
+    void configureDatabase();
+    void onDatabaseSelected(QListWidgetItem *item);
+    void onPatternSelected(QListWidgetItem *item);
+    void refreshPatterns();
+
+private:
+    void loadDatabases();
+    void loadPatterns();
+    void renderPolygon(const QString &coordinates);
+    void loadSettings();
+    void saveSettings();
+
+    DatabaseManager *dbManager;
+    QListWidget *databasesList;
+    QListWidget *patternsList;
+    QLabel *databasesListLabel;
+    QLabel *patternsListLabel;
+    QPushButton *refreshButton;
+    QPushButton *dbConfigButton;
+    QTabWidget *rightTabs;
+    QTableView *tableView;
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
+    QSettings *settings;
+};
+
+#endif // DATABASEVIEWER_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.h
+
+#ifndef GDSVIEWER_H
+#define GDSVIEWER_H
+
+#include <QMainWindow> // Changed from QWidget
+#include <QGraphicsView>
+#include <QVBoxLayout>
+#include <QPushButton>
+#include <QFileDialog>
+#include <QComboBox>
+#include <QProgressDialog>
+#include "LayoutFileReader.h"
+
+class GdsViewer : public QMainWindow { // Changed from QWidget
+    Q_OBJECT
+public:
+    GdsViewer(QWidget *parent = nullptr);
+
+private slots:
+    void loadGdsFile();
+    void updateLayer(int index);
+
+private:
+    void renderLayer(const Layer &layer);
+
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
+    QPushButton *loadButton;
+    QComboBox *layerCombo;
+    LayoutFileReader *reader;
+    std::vector<std::pair<int, int>> availableLayers;
+    QProgressDialog *progressDialog;
+    QWidget *centralWidget; // Added for QMainWindow
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.h
+
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <QSettings>
+#include "databaseviewer.h"
+#include "gdsviewer.h"
+#include "batchpatterncapture.h"
+
+class QMenu;
+class QAction;
+class QStatusBar;
+
+class MainWindow : public QMainWindow {
+    Q_OBJECT
+public:
+    explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
+
+private slots:
+    void openBatchPatternCapture();
+    void loadSettings();
+    void saveSettings();
+
+private:
+    QSettings *settings;
+    DatabaseViewer *dbViewer;
+    GdsViewer *gdsViewer;
+    BatchPatternCapture *batchPatternCapture;
+    QMenu *fileMenu;
+    QMenu *toolsMenu;
+    QAction *exitAction;
+    QAction *batchPatternCaptureAction;
+    QStatusBar *statusBar;
+};
+
+#endif // MAINWINDOW_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/patterncapture.h
+
+#ifndef PATTERNCAPTURE_H
+#define PATTERNCAPTURE_H
+
+#include <QWidget>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QProcess>
+#include <QSettings>
+
+class PatternCapture : public QWidget {
+    Q_OBJECT
+public:
+    PatternCapture(QWidget *parent = nullptr);
+
+private slots:
+    void browseLayoutFile();
+    void runPatternCapture();
+    void cancelProcess();
+    void readProcessOutput();
+    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
+
+private:
+    bool validateInputs();
+    void loadSettings();
+    void saveSettings();
+
+    QLineEdit *layoutFileEdit;
+    QLineEdit *maskLayerEdit;
+    QLineEdit *inputLayersEdit;
+    QLineEdit *dbNameEdit;
+    QPushButton *runButton;
+    QPushButton *cancelButton;
+    QPushButton *browseButton;
+    QTextEdit *logText;
+    QProcess *process;
+    QSettings *settings;
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/ZoomEventFilter.h
+
+#ifndef ZOOMEVENTFILTER_H
+#define ZOOMEVENTFILTER_H
+
+#include <QObject>
+#include <QGraphicsView>
+#include <QEvent>
+#include <QWheelEvent>
+
+class ZoomEventFilter : public QObject {
+    Q_OBJECT
+public:
+    ZoomEventFilter(QGraphicsView *view, QObject *parent = nullptr)
+        : QObject(parent), graphicsView(view) {
+        graphicsView->setProperty("scale", 1.0); // Initialize scale
+    }protected:
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (event->type() == QEvent::Wheel && obj == graphicsView) {
+            QWheelEvent *wheelEvent = static_cast<QWheelEvent*>(event);
+            qreal factor = wheelEvent->angleDelta().y() > 0 ? 1.1 : 0.9;
+            qreal currentScale = graphicsView->property("scale").toDouble() * factor;
+            graphicsView->setProperty("scale", currentScale);
+            graphicsView->scale(factor, factor);
+            return true; // Event handled
+        }
+        return QObject::eventFilter(obj, event);
+    }private:
+    QGraphicsView *graphicsView;
+};
+
+#endif // ZOOMEVENTFILTER_H
+
+=====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/batchpatterncapture.cpp
 
 #include "batchpatterncapture.h"
-#include "../../shared/Logging.h"
-#include "../../shared/LayoutFileReader.h"
+#include "Logging.h"
+#include <QLabel>
 #include <QFileDialog>
-#include <QUiLoader>
-#include <QFile>
 #include <QMessageBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTextEdit>
 
 BatchPatternCapture::BatchPatternCapture(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
+
+    // Create central widget and layout
+    QWidget *centralWidget = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
+    setCentralWidget(centralWidget);
+
+    // Layout file input
+    QHBoxLayout *fileLayout = new QHBoxLayout();
+    fileLayout->addWidget(new QLabel("Layout File:"));
+    layoutFileEdit = new QLineEdit(this);
+    browseButton = new QPushButton("Browse", this);
+    fileLayout->addWidget(layoutFileEdit);
+    fileLayout->addWidget(browseButton);
+    layout->addLayout(fileLayout);
+
+    // Mask layer input
+    layout->addWidget(new QLabel("Mask Layer Number:"));
+    maskLayerEdit = new QLineEdit("1", this);
+    layout->addWidget(maskLayerEdit);
+
+    // Input layers input
+    layout->addWidget(new QLabel("Input Layers Numbers:"));
+    inputLayersEdit = new QLineEdit("2", this);
+    layout->addWidget(inputLayersEdit);
+
+    // Database name input
+    layout->addWidget(new QLabel("Database Name:"));
+    dbNameEdit = new QLineEdit("test_db", this);
+    layout->addWidget(dbNameEdit);
+
+    // Buttons
+    runButton = new QPushButton("Run DFM Pattern Capture", this);
+    cancelButton = new QPushButton("Cancel", this);
+    layout->addWidget(runButton);
+    layout->addWidget(cancelButton);
+
+    // Log output
+    logText = new QTextEdit(this);
+    logText->setReadOnly(true);
+    layout->addWidget(logText);
+
+    // Process setup
     process = new QProcess(this);
-    dbManager = new DatabaseManager("test_db", "postgres", "", "localhost", "5432", [](const std::string &msg) {
-        LOG_ERROR("Database error: " + msg);
-    });
-
-    // Load UI file
-    QUiLoader loader;
-    QFile file(":/batchpatterncapture.ui");
-    file.open(QFile::ReadOnly);
-    QWidget *ui = loader.load(&file, this);
-    file.close();
-    setCentralWidget(ui);
-
-    // Find widgets
-    layoutFileEdit = findChild<QLineEdit*>("layoutFileEdit");
-    browseButton = findChild<QPushButton*>("browseButton");
-    maskLayerEdit = findChild<QLineEdit*>("maskLayerEdit");
-    inputLayersEdit = findChild<QLineEdit*>("inputLayersEdit");
-    dbNameEdit = findChild<QLineEdit*>("dbNameEdit");
-    runButton = findChild<QPushButton*>("runButton");
-    cancelButton = findChild<QPushButton*>("cancelButton");
-    logText = findChild<QTextEdit*>("logText");
-    processLabel = findChild<QLabel*>("processLabel");
-
     connect(browseButton, &QPushButton::clicked, this, &BatchPatternCapture::browseLayoutFile);
     connect(runButton, &QPushButton::clicked, this, &BatchPatternCapture::runPatternCapture);
     connect(cancelButton, &QPushButton::clicked, this, &BatchPatternCapture::cancelProcess);
     connect(process, &QProcess::readyReadStandardOutput, this, &BatchPatternCapture::readProcessOutput);
+    connect(process, &QProcess::readyReadStandardError, this, &BatchPatternCapture::readProcessOutput);
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &BatchPatternCapture::processFinished);
 
     loadSettings();
@@ -49,83 +328,103 @@ BatchPatternCapture::BatchPatternCapture(QWidget *parent) : QMainWindow(parent) 
 
 void BatchPatternCapture::browseLayoutFile() {
     LOG_FUNCTION();
-    QString fileName = QFileDialog::getOpenFileName(this, "Select Layout File", "", "Layout Files (*.gds *.oas)");
+    QString fileName = QFileDialog::getOpenFileName(this, "Select Layout File", "", "GDSII/OASIS Files (*.gds *.oas)");
     if (!fileName.isEmpty()) {
         layoutFileEdit->setText(fileName);
-        LOG_INFO("Selected file: " + fileName.toStdString());
+        LOG_INFO("Selected layout file: " + fileName.toStdString());
     }
 }
 
 void BatchPatternCapture::runPatternCapture() {
     LOG_FUNCTION();
-    QString layoutFile = layoutFileEdit->text();
-    QString maskLayer = maskLayerEdit->text();
-    QString inputLayers = inputLayersEdit->text();
-    QString dbName = dbNameEdit->text();
-
-    if (layoutFile.isEmpty() || maskLayer.isEmpty() || inputLayers.isEmpty() || dbName.isEmpty()) {
-        QMessageBox::warning(this, "Input Error", "All fields must be filled.");
-        LOG_ERROR("Missing input fields");
+    if (!validateInputs()) {
+        logText->append("Error: Invalid inputs. Please check all fields.");
+        LOG_WARN("Invalid inputs for pattern capture");
         return;
     }
-
-    LayoutFileReader reader;
-    if (!reader.loadFile(layoutFile.toStdString())) {
-        QMessageBox::critical(this, "Error", "Failed to load layout file.");
-        LOG_ERROR("Failed to load file: " + layoutFile.toStdString());
-        return;
+    if (programPath.isEmpty()) {
+        programPath = QFileDialog::getOpenFileName(this, "Select dfm_pattern_capture executable", "", "Executable Files (*)");
+        if (programPath.isEmpty()) return;
     }
-
-    MultiLayerPattern pattern;
-    pattern.mask_layer_number = maskLayer.toInt();
-    pattern.mask_layer_datatype = 0; // Default datatype
-    pattern.mask_polygon = reader.getPolygons(pattern.mask_layer_number)[0]; // First polygon as mask
-    QStringList layerList = inputLayers.split(",");
-    for (const QString& layer : layerList) {
-        int layerNum = layer.trimmed().toInt();
-        Layer inputLayer(layerNum, 0);
-        inputLayer.polygons = reader.getPolygons(layerNum);
-        pattern.input_layers.push_back(inputLayer);
+    logText->clear();
+    QStringList arguments = {
+        "-layout_file", layoutFileEdit->text(),
+        "-mask_layer_number", maskLayerEdit->text(),
+        "-input_layers_numbers", inputLayersEdit->text(),
+        "-db_name", dbNameEdit->text()
+    };
+    saveSettings();
+    process->start(programPath, arguments);
+    if (!process->waitForStarted()) {
+        logText->append("Error: Failed to start dfm_pattern_capture");
+        LOG_ERROR("Failed to start dfm_pattern_capture");
+    } else {
+        runButton->setEnabled(false);
+        cancelButton->setEnabled(true);
+        logText->append("Started pattern capture process...");
+        LOG_INFO("Started dfm_pattern_capture with args: " + arguments.join(" ").toStdString());
     }
-    pattern.pattern_id = "hash_" + std::to_string(std::rand()); // Placeholder hash
-
-    dbManager->disconnect();
-    dbManager = new DatabaseManager(dbName.toStdString(), "postgres", "", "localhost", "5432", [](const std::string &msg) {
-        LOG_ERROR("Database error: " + msg);
-    });
-    if (!dbManager->createDatabaseIfNotExists() || !dbManager->createTables() || !dbManager->storePattern(pattern, layoutFile.toStdString())) {
-        QMessageBox::critical(this, "Error", "Failed to store pattern in database.");
-        LOG_ERROR("Failed to store pattern in database: " + dbName.toStdString());
-        return;
-    }
-
-    logText->append("Pattern stored successfully in database: " + dbName);
-    LOG_INFO("Pattern stored in database: " + dbName.toStdString());
 }
 
 void BatchPatternCapture::cancelProcess() {
     LOG_FUNCTION();
     if (process->state() == QProcess::Running) {
         process->kill();
-        logText->append("Process cancelled.");
-        LOG_INFO("Process cancelled");
+        logText->append("Pattern capture process cancelled.");
+        LOG_INFO("Pattern capture process cancelled");
     }
+    runButton->setEnabled(true);
+    cancelButton->setEnabled(false);
 }
 
 void BatchPatternCapture::readProcessOutput() {
     LOG_FUNCTION();
     QString output = QString::fromUtf8(process->readAllStandardOutput());
-    logText->append(output);
-    LOG_DEBUG("Process output: " + output.toStdString());
+    QString error = QString::fromUtf8(process->readAllStandardError());
+    if (!output.isEmpty()) {
+        logText->append(output);
+        LOG_DEBUG("Process output: " + output.toStdString());
+    }
+    if (!error.isEmpty()) {
+        logText->append(error);
+        LOG_ERROR("Process error: " + error.toStdString());
+    }
 }
 
 void BatchPatternCapture::processFinished(int exitCode, QProcess::ExitStatus exitStatus) {
     LOG_FUNCTION();
-    QString message = exitStatus == QProcess::NormalExit
-        ? QString("Process finished with exit code %1").arg(exitCode)
-        : "Process crashed.";
-    logText->append(message);
-    LOG_INFO(message.toStdString());
+    runButton->setEnabled(true);
+    cancelButton->setEnabled(false);
+    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+        logText->append("Pattern capture completed successfully.");
+        LOG_INFO("Pattern capture completed with exit code 0");
+    } else {
+        logText->append(QString("Pattern capture failed with exit code %1.").arg(exitCode));
+        LOG_ERROR("Pattern capture failed with exit code " + std::to_string(exitCode));
+    }
+}
+
+bool BatchPatternCapture::validateInputs() {
+    LOG_FUNCTION();
+    if (layoutFileEdit->text().isEmpty() ||
+        maskLayerEdit->text().isEmpty() ||
+        inputLayersEdit->text().isEmpty() ||
+        dbNameEdit->text().isEmpty()) {
+        return false;
+    }
+    bool ok;
+    maskLayerEdit->text().toInt(&ok);
+    if (!ok) return false;
+    QStringList layers = inputLayersEdit->text().split(",");
+    for (const auto& layer : layers) {
+        layer.trimmed().toInt(&ok);
+        if (!ok) return false;
+    }
+    QFileInfo file(layoutFileEdit->text());
+    if (!file.exists()) {
+        return false;
+    }
+    return true;
 }
 
 void BatchPatternCapture::loadSettings() {
@@ -134,6 +433,7 @@ void BatchPatternCapture::loadSettings() {
     maskLayerEdit->setText(settings->value("maskLayer", "1").toString());
     inputLayersEdit->setText(settings->value("inputLayers", "2").toString());
     dbNameEdit->setText(settings->value("dbName", "test_db").toString());
+    programPath = settings->value("programPath", "").toString();
     LOG_DEBUG("Loaded BatchPatternCapture settings");
 }
 
@@ -143,6 +443,7 @@ void BatchPatternCapture::saveSettings() {
     settings->setValue("maskLayer", maskLayerEdit->text());
     settings->setValue("inputLayers", inputLayersEdit->text());
     settings->setValue("dbName", dbNameEdit->text());
+    settings->setValue("programPath", programPath);
     settings->sync();
     LOG_DEBUG("Saved BatchPatternCapture settings");
 }
@@ -159,42 +460,83 @@ Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseview
 #include <QJsonArray>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QSplitter>
 
 DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
-    db_manager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
-                                     settings->value("dbPassword", "").toString().toStdString(),
-                                     settings->value("dbHost", "localhost").toString().toStdString(),
-                                     settings->value("dbPort", "5432").toString().toStdString(),
-                                     [this](const std::string& error) {
-                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                     });
+    dbManager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
+                                    settings->value("dbPassword", "").toString().toStdString(),
+                                    settings->value("dbHost", "localhost").toString().toStdString(),
+                                    settings->value("dbPort", "5432").toString().toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    // Main layout with splitter
+    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    mainLayout->addWidget(splitter);
+
+    // Left side: Database and Patterns lists
+    QWidget *leftWidget = new QWidget(this);
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftWidget);
+    databasesListLabel = new QLabel("Patterns Databases List", this);
+    databasesList = new QListWidget(this);
+    patternsListLabel = new QLabel("Patterns List for database: None", this);
+    patternsList = new QListWidget(this);
+    leftLayout->addWidget(databasesListLabel);
+    leftLayout->addWidget(databasesList);
+    leftLayout->addWidget(patternsListLabel);
+    leftLayout->addWidget(patternsList);
+    splitter->addWidget(leftWidget);
+
+    // Right side: Tabbed panels
+    QWidget *rightWidget = new QWidget(this);
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightWidget);
     refreshButton = new QPushButton("Refresh Patterns", this);
     dbConfigButton = new QPushButton("Configure Database", this);
+    rightTabs = new QTabWidget(this);
     tableView = new QTableView(this);
     graphicsView = new QGraphicsView(this);
     scene = new QGraphicsScene(this);
     graphicsView->setScene(scene);
     graphicsView->setRenderHint(QPainter::Antialiasing);
     graphicsView->setDragMode(QGraphicsView::ScrollHandDrag);
-    layout->addWidget(refreshButton);
-    layout->addWidget(dbConfigButton);
-    layout->addWidget(tableView);
-    layout->addWidget(graphicsView);
+    rightTabs->addTab(graphicsView, "Geometries");
+    rightTabs->addTab(tableView, "Metadata");
+    rightLayout->addWidget(refreshButton);
+    rightLayout->addWidget(dbConfigButton);
+    rightLayout->addWidget(rightTabs);
+    splitter->addWidget(rightWidget);
 
+    splitter->setSizes({200, 600}); // Initial sizes for left and right
     graphicsView->installEventFilter(new ZoomEventFilter(graphicsView, this));
 
+    // Connect signals
     connect(refreshButton, &QPushButton::clicked, this, &DatabaseViewer::refreshPatterns);
     connect(dbConfigButton, &QPushButton::clicked, this, &DatabaseViewer::configureDatabase);
+    connect(databasesList, &QListWidget::itemClicked, this, &DatabaseViewer::onDatabaseSelected);
+    connect(patternsList, &QListWidget::itemClicked, this, &DatabaseViewer::onPatternSelected);
 
-    if (db_manager->isConnected() || db_manager->connect()) {
-        db_manager->createTables();
+    // Load initial database list
+    if (dbManager->isConnected() || dbManager->connect()) {
+        auto databases = dbManager->getAvailableDatabases();
+        for (const auto& db : databases) {
+            databasesList->addItem(QString::fromStdString(db));
+        }
+        dbManager->createTables();
         loadPatterns();
     }
     LOG_INFO("DatabaseViewer initialized");
+}
+
+DatabaseViewer::~DatabaseViewer() {
+    LOG_FUNCTION();
+    saveSettings();
+    delete dbManager;
+    delete settings;
+    LOG_INFO("DatabaseViewer destroyed");
 }
 
 void DatabaseViewer::configureDatabase() {
@@ -224,15 +566,20 @@ void DatabaseViewer::configureDatabase() {
     settings->sync();
     LOG_INFO("Database configuration updated: dbName=" + dbName.toStdString() + ", host=" + host.toStdString());
 
-    db_manager->disconnect();
-    delete db_manager;
-    db_manager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
-                                     host.toStdString(), port.toStdString(),
-                                     [this](const std::string& error) {
-                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                     });
-    if (db_manager->isConnected() || db_manager->connect()) {
-        db_manager->createTables();
+    dbManager->disconnect();
+    delete dbManager;
+    dbManager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
+                                    host.toStdString(), port.toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
+    if (dbManager->isConnected() || dbManager->connect()) {
+        dbManager->createTables();
+        databasesList->clear();
+        auto databases = dbManager->getAvailableDatabases();
+        for (const auto& db : databases) {
+            databasesList->addItem(QString::fromStdString(db));
+        }
         refreshPatterns();
     }
 }
@@ -240,23 +587,60 @@ void DatabaseViewer::configureDatabase() {
 void DatabaseViewer::refreshPatterns() {
     LOG_FUNCTION();
     scene->clear();
+    patternsList->clear();
+    patternsListLabel->setText("Patterns List for database: None");
     loadPatterns();
+}
+
+void DatabaseViewer::onDatabaseSelected(QListWidgetItem *item) {
+    LOG_FUNCTION();
+    QString dbName = item->text();
+    patternsListLabel->setText("Patterns List for database: " + dbName);
+    patternsList->clear();
+    scene->clear();
+    tableView->setModel(nullptr);
+
+    dbManager->disconnect();
+    delete dbManager;
+    dbManager = new DatabaseManager(dbName.toStdString(), settings->value("dbUser", "").toString().toStdString(),
+                                    settings->value("dbPassword", "").toString().toStdString(),
+                                    settings->value("dbHost", "localhost").toString().toStdString(),
+                                    settings->value("dbPort", "5432").toString().toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
+    if (dbManager->isConnected() || dbManager->connect()) {
+        dbManager->createTables();
+        auto patterns = dbManager->getPatterns();
+        for (const auto& pattern : patterns) {
+            patternsList->addItem(QString::number(pattern.id));
+        }
+        LOG_INFO("Loaded patterns for database: " + dbName.toStdString());
+    }
+}
+
+void DatabaseViewer::onPatternSelected(QListWidgetItem *item) {
+    LOG_FUNCTION();
+    int patternId = item->text().toInt();
+    scene->clear();
+    //loadPatterns(patternId);
 }
 
 void DatabaseViewer::loadPatterns() {
     LOG_FUNCTION();
-    if (!db_manager->isConnected() && !db_manager->connect()) {
+    if (!dbManager->isConnected() && !dbManager->connect()) {
         LOG_WARN("No database connection");
         return;
     }
     try {
-        auto patterns = db_manager->getPatterns();
-        auto geometries = db_manager->getGeometries();
+        auto patterns = dbManager->getPatterns();
+        auto geometries = dbManager->getGeometries();
         QStandardItemModel *model = new QStandardItemModel(this);
         model->setColumnCount(7);
         model->setHorizontalHeaderLabels({"ID", "Pattern Hash", "Mask Layer", "Input Layers", "Layout File", "Area", "Perimeter"});
 
         for (const auto& pattern : patterns) {
+            //if (patternId >= 0 && pattern.id != patternId) continue;
             QList<QStandardItem*> items;
             items << new QStandardItem(QString::number(pattern.id));
             items << new QStandardItem(QString::fromStdString(pattern.pattern_hash));
@@ -320,6 +704,7 @@ void DatabaseViewer::saveSettings() {
     LOG_FUNCTION();
     settings->sync();
 }
+
 =====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.cpp
 
@@ -442,30 +827,48 @@ Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.c
 #include <QMenuBar>
 #include <QAction>
 #include <QApplication>
-#include <QDebug>
-#include <QUiLoader>
-#include <QFile>
+#include <QStatusBar>
+#include <QVBoxLayout>
+#include <QWidget>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
 
-    // Load UI file
-    QUiLoader loader;
-    QFile file(":/mainwindow.ui");
-    file.open(QFile::ReadOnly);
-    QWidget *ui = loader.load(&file, this);
-    file.close();
-    setCentralWidget(ui);
+    // Create central widget and layout
+    QWidget *centralWidget = new QWidget(this);
+    QVBoxLayout *centralLayout = new QVBoxLayout(centralWidget);
+    setCentralWidget(centralWidget);
 
-    // Find widgets
-    dbViewer = new DatabaseViewer(findChild<QWidget*>("dbViewerPlaceholder"));
-    statusBar = findChild<QStatusBar*>("statusBar");
-    fileMenu = findChild<QMenu*>("fileMenu");
-    toolsMenu = findChild<QMenu*>("toolsMenu");
-    exitAction = findChild<QAction*>("exitAction");
-    batchPatternCaptureAction = findChild<QAction*>("batchPatternCaptureAction");
+    // Create placeholder for DatabaseViewer
+    QWidget *dbViewerPlaceholder = new QWidget(centralWidget);
+    centralLayout->addWidget(dbViewerPlaceholder);
 
+    // Instantiate DatabaseViewer
+    dbViewer = new DatabaseViewer(dbViewerPlaceholder);
+    dbViewer->setParent(dbViewerPlaceholder);
+
+    // Create menu bar
+    QMenuBar *menuBar = new QMenuBar(this);
+    setMenuBar(menuBar);
+
+    // File menu
+    fileMenu = new QMenu("File", this);
+    exitAction = new QAction("Exit", this);
+    fileMenu->addAction(exitAction);
+    menuBar->addMenu(fileMenu);
+
+    // Tools menu
+    toolsMenu = new QMenu("Tools", this);
+    batchPatternCaptureAction = new QAction("Batch Pattern Capture", this);
+    toolsMenu->addAction(batchPatternCaptureAction);
+    menuBar->addMenu(toolsMenu);
+
+    // Status bar
+    statusBar = new QStatusBar(this);
+    setStatusBar(statusBar);
+
+    // Initialize other components
     gdsViewer = new GdsViewer();
     batchPatternCapture = nullptr;
 
@@ -476,7 +879,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
     connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
 
-    // Show GdsViewer by default
+    // Show GdsViewer by default (version 0.13)
     gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
     gdsViewer->setWindowTitle("GDS/OASIS Viewer");
     gdsViewer->resize(800, 600);
@@ -523,211 +926,393 @@ void MainWindow::saveSettings() {
     LOG_DEBUG("Saved MainWindow settings");
 }
 =====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/batchpatterncapture.h
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/patterncapture.cpp
 
-#ifndef BATCHPATTERNCAPTURE_H
-#define BATCHPATTERNCAPTURE_H
-
-#include <QMainWindow>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QTextEdit>
-#include <QVBoxLayout>
-#include <QProcess>
-#include <QSettings>
-
-class BatchPatternCapture : public QMainWindow {
-    Q_OBJECT
-public:
-    BatchPatternCapture(QWidget *parent = nullptr);
-
-private slots:
-    void browseLayoutFile();
-    void runPatternCapture();
-    void cancelProcess();
-    void readProcessOutput();
-    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
-
-private:
-    bool validateInputs();
-    void loadSettings();
-    void saveSettings();
-
-    QLineEdit *layoutFileEdit;
-    QLineEdit *maskLayerEdit;
-    QLineEdit *inputLayersEdit;
-    QLineEdit *dbNameEdit;
-    QPushButton *runButton;
-    QPushButton *cancelButton;
-    QPushButton *browseButton;
-    QTextEdit *logText;
-    QProcess *process;
-    QSettings *settings;
-    QString programPath;
-    QWidget *centralWidget;
-};
-
-#endif
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.h
-
-#ifndef DATABASEVIEWER_H
-#define DATABASEVIEWER_H
-
-#include <QWidget>
-#include <QListWidget>
-#include <QTableWidget>
-#include <QGraphicsView>
-#include <QGraphicsScene>
-#include <QPushButton>
-#include <QTabWidget>
+#include "patterncapture.h"
+#include "Logging.h"
+#include <QDebug>
 #include <QLabel>
-#include "../shared/DatabaseManager.h"
-
-class DatabaseViewer : public QWidget {
-    Q_OBJECT
-public:
-    DatabaseViewer(QWidget *parent = nullptr);
-
-private slots:
-    void refreshDatabases();
-    void onDatabaseSelected(QListWidgetItem *item);
-    void onPatternSelected(QListWidgetItem *item);
-    void configureDatabase();
-
-private:
-    void renderPattern(const Pattern &pattern);
-    void updateMetadata(const Pattern &pattern);
-
-    QListWidget *databasesList;
-    QListWidget *patternsList;
-    QLabel *patternsListLabel;
-    QGraphicsView *graphicsView;
-    QGraphicsScene *scene;
-    QTableWidget *metadataTable;
-    QPushButton *refreshButton;
-    QPushButton *configureButton;
-    QTabWidget *rightTabs;
-    DatabaseManager *dbManager;
-};
-
-#endif
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.h
-
-#ifndef GDSVIEWER_H
-#define GDSVIEWER_H
-
-#include <QMainWindow> // Changed from QWidget
-#include <QGraphicsView>
-#include <QVBoxLayout>
-#include <QPushButton>
 #include <QFileDialog>
-#include <QComboBox>
-#include <QProgressDialog>
-#include "LayoutFileReader.h"
+#include <QMessageBox>
 
-class GdsViewer : public QMainWindow { // Changed from QWidget
-    Q_OBJECT
+PatternCapture::PatternCapture(QWidget *parent) : QWidget(parent) {
+    LOG_FUNCTION();
+    settings = new QSettings("MyOrg", "DFMPatternViewer", this);
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layoutFileEdit = new QLineEdit("/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced5/build/spm.gds", this);
+    browseButton = new QPushButton("Browse", this);
+    maskLayerEdit = new QLineEdit("1", this);
+    inputLayersEdit = new QLineEdit("2", this);
+    dbNameEdit = new QLineEdit("test_db", this);
+    runButton = new QPushButton("Run DFM Pattern Capture", this);
+    cancelButton = new QPushButton("Cancel", this);
+    logText = new QTextEdit(this);
+    logText->setReadOnly(true);
+
+    QHBoxLayout *fileLayout = new QHBoxLayout();
+    fileLayout->addWidget(new QLabel("Layout File:"));
+    fileLayout->addWidget(layoutFileEdit);
+    fileLayout->addWidget(browseButton);
+
+    layout->addLayout(fileLayout);
+    layout->addWidget(new QLabel("Mask Layer Number:"));
+    layout->addWidget(maskLayerEdit);
+    layout->addWidget(new QLabel("Input Layers Numbers:"));
+    layout->addWidget(inputLayersEdit);
+    layout->addWidget(new QLabel("Database Name:"));
+    layout->addWidget(dbNameEdit);
+    layout->addWidget(runButton);
+    layout->addWidget(cancelButton);
+    layout->addWidget(logText);
+
+    process = new QProcess(this);
+    connect(browseButton, &QPushButton::clicked, this, &PatternCapture::browseLayoutFile);
+    connect(runButton, &QPushButton::clicked, this, &PatternCapture::runPatternCapture);
+    connect(cancelButton, &QPushButton::clicked, this, &PatternCapture::cancelProcess);
+    connect(process, &QProcess::readyReadStandardOutput, this, &PatternCapture::readProcessOutput);
+    connect(process, &QProcess::readyReadStandardError, this, &PatternCapture::readProcessOutput);
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &PatternCapture::processFinished);
+
+    loadSettings();
+    LOG_INFO("PatternCapture initialized");
+}
+
+void PatternCapture::browseLayoutFile() {
+    LOG_FUNCTION();
+    QString fileName = QFileDialog::getOpenFileName(this, "Select Layout File", "", "GDSII/OASIS Files (*.gds *.oas)");
+    if (!fileName.isEmpty()) {
+        layoutFileEdit->setText(fileName);
+        LOG_INFO("Selected layout file: " + fileName.toStdString());
+    }
+}
+
+void PatternCapture::runPatternCapture() {
+    LOG_FUNCTION();
+    if (!validateInputs()) {
+        logText->append("Error: Invalid inputs. Please check all fields.");
+        LOG_WARN("Invalid inputs for pattern capture");
+        return;
+    }
+    logText->clear();
+    QString program = "/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced5/build/dfm_pattern_capture";
+    QStringList arguments = {
+        "-layout_file", layoutFileEdit->text(),
+        "-mask_layer_number", maskLayerEdit->text(),
+        "-input_layers_numbers", inputLayersEdit->text(),
+        "-db_name", dbNameEdit->text()
+    };
+    saveSettings();
+    process->start(program, arguments);
+    if (!process->waitForStarted()) {
+        logText->append("Error: Failed to start dfm_pattern_capture");
+        LOG_ERROR("Failed to start dfm_pattern_capture");
+    } else {
+        runButton->setEnabled(false);
+        cancelButton->setEnabled(true);
+        logText->append("Started pattern capture process...");
+        LOG_INFO("Started dfm_pattern_capture with args: " + arguments.join(" ").toStdString());
+    }
+}
+
+void PatternCapture::cancelProcess() {
+    LOG_FUNCTION();
+    if (process->state() == QProcess::Running) {
+        process->kill();
+        logText->append("Pattern capture process cancelled.");
+        LOG_INFO("Pattern capture process cancelled");
+    }
+    runButton->setEnabled(true);
+    cancelButton->setEnabled(false);
+}
+
+void PatternCapture::readProcessOutput() {
+    LOG_FUNCTION();
+    QString output = QString::fromUtf8(process->readAllStandardOutput());
+    QString error = QString::fromUtf8(process->readAllStandardError());
+    if (!output.isEmpty()) {
+        logText->append(output);
+        LOG_DEBUG("Process output: " + output.toStdString());
+    }
+    if (!error.isEmpty()) {
+        logText->append(error);
+        LOG_ERROR("Process error: " + error.toStdString());
+    }
+}
+
+void PatternCapture::processFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    LOG_FUNCTION();
+    runButton->setEnabled(true);
+    cancelButton->setEnabled(false);
+    if (exitStatus == QProcess::NormalExit && exitCode == 0) {
+        logText->append("Pattern capture completed successfully.");
+        LOG_INFO("Pattern capture completed with exit code 0");
+    } else {
+        logText->append(QString("Pattern capture failed with exit code %1.").arg(exitCode));
+        LOG_ERROR("Pattern capture failed with exit code " + std::to_string(exitCode));
+    }
+}
+
+bool PatternCapture::validateInputs() {
+    LOG_FUNCTION();
+    if (layoutFileEdit->text().isEmpty() ||
+        maskLayerEdit->text().isEmpty() ||
+        inputLayersEdit->text().isEmpty() ||
+        dbNameEdit->text().isEmpty()) {
+        return false;
+    }
+    bool ok;
+    maskLayerEdit->text().toInt(&ok);
+    if (!ok) return false;
+    QStringList layers = inputLayersEdit->text().split(",");
+    for (const QString &layer : layers) {
+        layer.trimmed().toInt(&ok);
+        if (!ok) return false;
+    }
+    QFileInfo file(layoutFileEdit->text());
+    if (!file.exists()) {
+        return false;
+    }
+    return true;
+}
+
+void PatternCapture::loadSettings() {
+    LOG_FUNCTION();
+    layoutFileEdit->setText(settings->value("layoutFile", "/home/amrmuhammad/dev/dfm_pattern_match4/dfm-pattern-capture-enhanced5/build/spm.gds").toString());
+    maskLayerEdit->setText(settings->value("maskLayer", "1").toString());
+    inputLayersEdit->setText(settings->value("inputLayers", "2").toString());
+    dbNameEdit->setText(settings->value("dbName", "test_db").toString());
+    LOG_DEBUG("Loaded PatternCapture settings");
+}
+
+void PatternCapture::saveSettings() {
+    LOG_FUNCTION();
+    settings->setValue("layoutFile", layoutFileEdit->text());
+    settings->setValue("maskLayer", maskLayerEdit->text());
+    settings->setValue("inputLayers", inputLayersEdit->text());
+    settings->setValue("dbName", dbNameEdit->text());
+    settings->sync();
+    LOG_DEBUG("Saved PatternCapture settings");
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.h
+
+#ifndef DATABASEMANAGER_H
+#define DATABASEMANAGER_H
+
+#include <pqxx/pqxx>
+#include <string>
+#include <vector>
+#include <functional>
+#include "Geometry.h"
+
+struct Pattern {
+    int id;
+    std::string pattern_hash;
+    int mask_layer_number;
+    int mask_layer_datatype;
+    std::string input_layers;
+    std::string layout_file_name;
+    std::string created_at;
+};
+
+struct Geometry {
+    int id;
+    int pattern_id;
+    int layer_number;
+    int datatype;
+    std::string geometry_type;
+    std::string coordinates;
+    double area;
+    double perimeter;
+};
+
+using ErrorCallback = std::function<void(const std::string&)>;
+
+class DatabaseManager {
 public:
-    GdsViewer(QWidget *parent = nullptr);
-
-private slots:
-    void loadGdsFile();
-    void updateLayer(int index);
+    DatabaseManager(const std::string& db_name, const std::string& user,
+                    const std::string& password, const std::string& host,
+                    const std::string& port, ErrorCallback error_callback);
+    ~DatabaseManager();
+    void setErrorCallback(ErrorCallback callback);
+    bool isConnected() const;
+    bool connect();
+    void disconnect();
+    bool createDatabaseIfNotExists();
+    bool createTables();
+    bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
+    std::vector<Pattern> getPatterns();
+    std::vector<Geometry> getGeometries(int pattern_id = -1);
+    std::vector<std::string> getAvailableDatabases();
 
 private:
-    void renderLayer(const Layer &layer);
+    std::string db_name_;
+    std::string user_;
+    std::string password_;
+    std::string host_;
+    std::string port_;
+    std::unique_ptr<pqxx::connection> conn_;
+    ErrorCallback error_callback_;
+    void reportError(const std::string& message, const std::string& query = "");
+    int insertPatternMetadata(pqxx::work& txn, const MultiLayerPattern& pattern, const std::string& layout_file_name);
+    bool insertPatternGeometries(pqxx::work& txn, int pattern_id, const MultiLayerPattern& pattern);
+    bool insertPolygon(pqxx::work& txn, int pattern_id, int layer_number, int datatype, const Polygon& polygon);
+};
 
-    QGraphicsView *graphicsView;
-    QGraphicsScene *scene;
-    QPushButton *loadButton;
-    QComboBox *layerCombo;
-    LayoutFileReader *reader;
-    std::vector<std::pair<int, int>> availableLayers;
-    QProgressDialog *progressDialog;
-    QWidget *centralWidget; // Added for QMainWindow
+#endif // DATABASEMANAGER_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Geometry.h
+
+#ifndef GEOMETRY_H
+#define GEOMETRY_H
+
+#include <vector>
+#include <chrono>
+#include <string>
+
+struct Point {
+    double x, y;
+    Point() = default; // Default constructor
+    Point(double x_, double y_) : x(x_), y(y_) {} // New constructor for (x, y)
+    bool operator==(const Point& other) const;
+};
+
+struct Polygon {
+    std::vector<Point> points;
+    double area;
+    double perimeter;
+    Polygon();
+    void calculateArea();
+    void calculatePerimeter();
+    bool isValid() const;
+};
+
+struct Layer {
+    int layer_number;
+    int datatype;
+    std::vector<Polygon> polygons;
+    Layer(int num, int dt = 0);
+    size_t getPolygonCount() const;
+    double getTotalArea() const;
+};
+
+struct MultiLayerPattern {
+    std::string pattern_id;
+    int mask_layer_number;
+    int mask_layer_datatype;
+    Polygon mask_polygon;
+    std::vector<Layer> input_layers;
+    std::chrono::system_clock::time_point created_at;
+    MultiLayerPattern();
 };
 
 #endif
 =====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.h
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/LayoutFileReader.h
 
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#ifndef LAYOUT_FILE_READER_H
+#define LAYOUT_FILE_READER_H
 
-#include <QMainWindow>
-#include <QStatusBar>
-#include <QSettings>
-#include <QMenu>
-#include <QAction>
-#include "databaseviewer.h"
-#include "gdsviewer.h"
-#include "batchpatterncapture.h"
+#include "Geometry.h"
+#include <string>
+#include <vector>
+#include <fstream>
 
-class MainWindow : public QMainWindow {
-    Q_OBJECT
+class LayoutFileReader {
 public:
-    MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
-
-private slots:
-    void openBatchPatternCapture();
+    enum FileType { GDSII, OASIS, UNKNOWN };
+    LayoutFileReader(const std::string& filename);
+    FileType getFileType() const;
+    Layer loadLayer(int layer_number, int datatype); // Updated to include datatype
+    std::vector<std::pair<int, int>> getAvailableLayersAndDatatypes(); // Updated to return layer:datatype pairs
 
 private:
-    void saveSettings();
-    void loadSettings();
-    void setupMenuBar();
-
-    DatabaseViewer *dbViewer;
-    GdsViewer *gdsViewer;
-    BatchPatternCapture *batchPatternCapture;
-    QStatusBar *statusBar;
-    QSettings *settings;
-    QMenu *fileMenu;
-    QMenu *toolsMenu;
-    QAction *exitAction;
-    QAction *batchPatternCaptureAction;
+    std::string filename_;
+    FileType file_type_;
+    void detectFileType();
+    void loadGDSIILayer(int layer_number, int datatype, Layer& layer);
+    void loadOASISLayer(int layer_number, int datatype, Layer& layer);
+    uint16_t read_uint16(std::ifstream& file);
+    uint8_t read_uint8(std::ifstream& file);
+    int32_t read_int32(std::ifstream& file);
+    double read_double(std::ifstream& file);
+    std::string read_string(std::ifstream& file, uint16_t length);
+    uint64_t read_unsigned_int(std::ifstream& file);
+    int64_t read_signed_int(std::ifstream& file);
 };
 
 #endif
 =====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/ZoomEventFilter.h
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Logging.h
 
-#ifndef ZOOMEVENTFILTER_H
-#define ZOOMEVENTFILTER_H
+#ifndef LOGGING_H
+#define LOGGING_H
 
-#include <QObject>
-#include <QGraphicsView>
-#include <QEvent>
-#include <QWheelEvent>
+#include <string>
+#include <iostream>
+#include <mutex>
 
-class ZoomEventFilter : public QObject {
-    Q_OBJECT
-public:
-    ZoomEventFilter(QGraphicsView *view, QObject *parent = nullptr)
-        : QObject(parent), graphicsView(view) {
-        graphicsView->setProperty("scale", 1.0); // Initialize scale
-    }
-
-protected:
-    bool eventFilter(QObject *obj, QEvent *event) override {
-        if (event->type() == QEvent::Wheel && obj == graphicsView) {
-            QWheelEvent *wheelEvent = static_cast<QWheelEvent*>(event);
-            qreal factor = wheelEvent->angleDelta().y() > 0 ? 1.1 : 0.9;
-            qreal currentScale = graphicsView->property("scale").toDouble() * factor;
-            graphicsView->setProperty("scale", currentScale);
-            graphicsView->scale(factor, factor);
-            return true; // Event handled
-        }
-        return QObject::eventFilter(obj, event);
-    }
-
-private:
-    QGraphicsView *graphicsView;
+// Logging verbosity levels
+enum class LogLevel {
+    ERROR = 0,
+    WARN = 1,
+    INFO = 2,
+    LOG_DEBUG = 3
 };
 
-#endif // ZOOMEVENTFILTER_H
+class Logger {
+public:
+    static Logger& getInstance();
+    void log(LogLevel level, const std::string& message) const;
+    bool isLoggingEnabled() const { return logging_enabled_; }
+    LogLevel getLogLevel() const { return log_level_; }
+
+private:
+    Logger();
+    bool logging_enabled_;
+    LogLevel log_level_;
+    mutable std::mutex mtx_;
+    std::string levelToString(LogLevel level) const;
+    LogLevel parseLogLevel(const std::string& level_str) const;
+};
+
+// Logging macros
+#define LOG_ERROR(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::ERROR) { \
+            Logger::getInstance().log(LogLevel::ERROR, message); \
+        } \
+    } while (0)
+
+#define LOG_WARN(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::WARN) { \
+            Logger::getInstance().log(LogLevel::WARN, message); \
+        } \
+    } while (0)
+
+#define LOG_INFO(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::INFO) { \
+            Logger::getInstance().log(LogLevel::INFO, message); \
+        } \
+    } while (0)
+
+#define LOG_DEBUG(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::LOG_DEBUG) { \
+            Logger::getInstance().log(LogLevel::LOG_DEBUG, message); \
+        } \
+    } while (0);
+
+#define LOG_FUNCTION() \
+    LOG_DEBUG("Entering " + std::string(__FUNCTION__))
+
+#endif // LOGGING_H
 =====================================
 Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.cpp
 
@@ -1006,6 +1591,28 @@ std::vector<Geometry> DatabaseManager::getGeometries(int pattern_id) {
     } catch (const std::exception& e) {
         reportError("Error retrieving geometries: " + std::string(e.what()), query);
         return geometries;
+    }
+}
+
+std::vector<std::string> DatabaseManager::getAvailableDatabases() {
+    LOG_FUNCTION();
+    std::vector<std::string> databases;
+    try {
+        std::string conn_str = "dbname=postgres user=" + user_ +
+                               " password=" + password_ + " host=" + host_ +
+                               " port=" + port_;
+        pqxx::connection temp_conn(conn_str);
+        pqxx::work txn(temp_conn);
+        std::string query = "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres'";
+        pqxx::result res = txn.exec(query);
+        for (const auto& row : res) {
+            databases.push_back(row[0].as<std::string>());
+        }
+        LOG_INFO("Retrieved " + std::to_string(databases.size()) + " databases");
+        return databases;
+    } catch (const std::exception& e) {
+        reportError("Error retrieving databases: " + std::string(e.what()));
+        return databases;
     }
 }
 =====================================
@@ -1624,223 +2231,4 @@ void Logger::log(LogLevel level, const std::string& message) const {
     std::lock_guard<std::mutex> lock(mtx_);
     std::cout << oss.str() << std::endl;
 }
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.h
-
-#ifndef DATABASEMANAGER_H
-#define DATABASEMANAGER_H
-
-#include <pqxx/pqxx>
-#include <string>
-#include <vector>
-#include <functional>
-#include "Geometry.h"
-
-struct Pattern {
-    int id;
-    std::string pattern_hash;
-    int mask_layer_number;
-    int mask_layer_datatype;
-    std::string input_layers;
-    std::string layout_file_name;
-    std::string created_at;
-};
-
-struct Geometry {
-    int id;
-    int pattern_id;
-    int layer_number;
-    int datatype;
-    std::string geometry_type;
-    std::string coordinates;
-    double area;
-    double perimeter;
-};
-
-using ErrorCallback = std::function<void(const std::string&)>;
-
-class DatabaseManager {
-public:
-    DatabaseManager(const std::string& db_name, const std::string& user,
-                    const std::string& password, const std::string& host,
-                    const std::string& port, ErrorCallback error_callback);
-    ~DatabaseManager();
-    void setErrorCallback(ErrorCallback callback);
-    bool isConnected() const;
-    bool connect();
-    void disconnect();
-    bool createDatabaseIfNotExists();
-    bool createTables();
-    bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
-    std::vector<Pattern> getPatterns();
-    std::vector<Geometry> getGeometries(int pattern_id = -1);
-
-private:
-    std::string db_name_;
-    std::string user_;
-    std::string password_;
-    std::string host_;
-    std::string port_;
-    std::unique_ptr<pqxx::connection> conn_;
-    ErrorCallback error_callback_;
-    void reportError(const std::string& message, const std::string& query = "");
-    int insertPatternMetadata(pqxx::work& txn, const MultiLayerPattern& pattern, const std::string& layout_file_name);
-    bool insertPatternGeometries(pqxx::work& txn, int pattern_id, const MultiLayerPattern& pattern);
-    bool insertPolygon(pqxx::work& txn, int pattern_id, int layer_number, int datatype, const Polygon& polygon);
-};
-
-#endif // DATABASEMANAGER_H
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Geometry.h
-
-#ifndef GEOMETRY_H
-#define GEOMETRY_H
-
-#include <vector>
-#include <chrono>
-#include <string>
-
-struct Point {
-    double x, y;
-    Point() = default; // Default constructor
-    Point(double x_, double y_) : x(x_), y(y_) {} // New constructor for (x, y)
-    bool operator==(const Point& other) const;
-};
-
-struct Polygon {
-    std::vector<Point> points;
-    double area;
-    double perimeter;
-    Polygon();
-    void calculateArea();
-    void calculatePerimeter();
-    bool isValid() const;
-};
-
-struct Layer {
-    int layer_number;
-    int datatype;
-    std::vector<Polygon> polygons;
-    Layer(int num, int dt = 0);
-    size_t getPolygonCount() const;
-    double getTotalArea() const;
-};
-
-struct MultiLayerPattern {
-    std::string pattern_id;
-    int mask_layer_number;
-    int mask_layer_datatype;
-    Polygon mask_polygon;
-    std::vector<Layer> input_layers;
-    std::chrono::system_clock::time_point created_at;
-    MultiLayerPattern();
-};
-
-#endif
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/LayoutFileReader.h
-
-#ifndef LAYOUT_FILE_READER_H
-#define LAYOUT_FILE_READER_H
-
-#include "Geometry.h"
-#include <string>
-#include <vector>
-#include <fstream>
-
-class LayoutFileReader {
-public:
-    enum FileType { GDSII, OASIS, UNKNOWN };
-    LayoutFileReader(const std::string& filename);
-    FileType getFileType() const;
-    Layer loadLayer(int layer_number, int datatype); // Updated to include datatype
-    std::vector<std::pair<int, int>> getAvailableLayersAndDatatypes(); // Updated to return layer:datatype pairs
-
-private:
-    std::string filename_;
-    FileType file_type_;
-    void detectFileType();
-    void loadGDSIILayer(int layer_number, int datatype, Layer& layer);
-    void loadOASISLayer(int layer_number, int datatype, Layer& layer);
-    uint16_t read_uint16(std::ifstream& file);
-    uint8_t read_uint8(std::ifstream& file);
-    int32_t read_int32(std::ifstream& file);
-    double read_double(std::ifstream& file);
-    std::string read_string(std::ifstream& file, uint16_t length);
-    uint64_t read_unsigned_int(std::ifstream& file);
-    int64_t read_signed_int(std::ifstream& file);
-};
-
-#endif
-=====================================
-Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Logging.h
-
-#ifndef LOGGING_H
-#define LOGGING_H
-
-#include <string>
-#include <iostream>
-#include <mutex>
-
-// Logging verbosity levels
-enum class LogLevel {
-    ERROR = 0,
-    WARN = 1,
-    INFO = 2,
-    LOG_DEBUG = 3
-};
-
-class Logger {
-public:
-    static Logger& getInstance();
-    void log(LogLevel level, const std::string& message) const;
-    bool isLoggingEnabled() const { return logging_enabled_; }
-    LogLevel getLogLevel() const { return log_level_; }
-
-private:
-    Logger();
-    bool logging_enabled_;
-    LogLevel log_level_;
-    mutable std::mutex mtx_;
-    std::string levelToString(LogLevel level) const;
-    LogLevel parseLogLevel(const std::string& level_str) const;
-};
-
-// Logging macros
-#define LOG_ERROR(message) \
-    do { \
-        if (Logger::getInstance().isLoggingEnabled() && \
-            Logger::getInstance().getLogLevel() >= LogLevel::ERROR) { \
-            Logger::getInstance().log(LogLevel::ERROR, message); \
-        } \
-    } while (0)
-
-#define LOG_WARN(message) \
-    do { \
-        if (Logger::getInstance().isLoggingEnabled() && \
-            Logger::getInstance().getLogLevel() >= LogLevel::WARN) { \
-            Logger::getInstance().log(LogLevel::WARN, message); \
-        } \
-    } while (0)
-
-#define LOG_INFO(message) \
-    do { \
-        if (Logger::getInstance().isLoggingEnabled() && \
-            Logger::getInstance().getLogLevel() >= LogLevel::INFO) { \
-            Logger::getInstance().log(LogLevel::INFO, message); \
-        } \
-    } while (0)
-
-#define LOG_DEBUG(message) \
-    do { \
-        if (Logger::getInstance().isLoggingEnabled() && \
-            Logger::getInstance().getLogLevel() >= LogLevel::LOG_DEBUG) { \
-            Logger::getInstance().log(LogLevel::LOG_DEBUG, message); \
-        } \
-    } while (0);
-
-#define LOG_FUNCTION() \
-    LOG_DEBUG("Entering " + std::string(__FUNCTION__))
-
-#endif // LOGGING_H
 =====================================

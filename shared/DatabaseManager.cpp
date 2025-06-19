@@ -3,6 +3,7 @@
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
+#include <set>
 
 DatabaseManager::DatabaseManager(const std::string& db_name, const std::string& user,
                                  const std::string& password, const std::string& host,
@@ -94,6 +95,12 @@ bool DatabaseManager::createTables() {
     try {
         pqxx::work txn(*conn_);
         query = R"(
+            CREATE TABLE IF NOT EXISTS patterns_db_version (
+                version_id VARCHAR(36) PRIMARY KEY
+            )
+        )";
+        txn.exec0(query);
+        query = R"(
             CREATE TABLE IF NOT EXISTS patterns (
                 id SERIAL PRIMARY KEY,
                 pattern_hash VARCHAR(64) UNIQUE,
@@ -123,6 +130,37 @@ bool DatabaseManager::createTables() {
         return true;
     } catch (const std::exception& e) {
         reportError("Failed to create tables: " + std::string(e.what()), query);
+        return false;
+    }
+}
+
+bool DatabaseManager::isValidSchema() {
+    LOG_FUNCTION();
+    if (!isConnected() && !connect()) return false;
+
+    static const std::set<std::string> valid_guids = {
+        "123e4567-e89b-12d3-a456-426614174000",
+        "123e4567-e89b-12d3-a456-426614174001"
+    };
+
+    std::string query;
+    try {
+        pqxx::work txn(*conn_);
+        query = "SELECT version_id FROM patterns_db_version";
+        pqxx::result res = txn.exec(query);
+        if (res.size() != 1) {
+            reportError("Invalid schema: patterns_db_version table must contain exactly one row");
+            return false;
+        }
+        std::string version_id = res[0][0].as<std::string>();
+        if (valid_guids.find(version_id) == valid_guids.end()) {
+            reportError("Invalid schema: version_id " + version_id + " is not recognized");
+            return false;
+        }
+        LOG_INFO("Valid schema detected with version_id: " + version_id);
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Schema validation failed: " + std::string(e.what()), query);
         return false;
     }
 }

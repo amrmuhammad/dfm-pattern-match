@@ -21,6 +21,7 @@ class DatabaseViewer : public QWidget {
 public:
     explicit DatabaseViewer(QWidget *parent = nullptr);
     virtual ~DatabaseViewer();
+    bool connectToDatabase(const QString &dbName); // New method
 
 private slots:
     void configureDatabase();

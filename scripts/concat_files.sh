@@ -2,14 +2,13 @@
 
 # Check if output file name is provided
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 output_file [input_files...]"
+    echo "Usage: $0 [input_files...]"
     exit 1
 fi
 
 # Store output file name (first argument) and get its full path
-output_file=$1
+output_file="./concatenated_files.txt"
 output_full_path=$(realpath "$output_file")
-shift # Remove first argument, leaving input files
 
 # Check if any input files are provided
 if [ $# -eq 0 ]; then
