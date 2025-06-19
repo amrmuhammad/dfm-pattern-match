@@ -1,34 +1,59 @@
 #include "batchpatterncapture.h"
 #include "Logging.h"
-#include <QDebug>
 #include <QLabel>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QtUiTools/QUiLoader>
-#include <QFile>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTextEdit>
 
 BatchPatternCapture::BatchPatternCapture(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
 
-    // Load UI file
-    QUiLoader loader;
-    QFile file(":/batchpatterncapture.ui");
-    file.open(QFile::ReadOnly);
-    QWidget *ui = loader.load(&file, this);
-    file.close();
-    setCentralWidget(ui);
+    // Create central widget and layout
+    QWidget *centralWidget = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
+    setCentralWidget(centralWidget);
 
-    // Find widgets
-    layoutFileEdit = findChild<QLineEdit*>("layoutFileEdit");
-    browseButton = findChild<QPushButton*>("browseButton");
-    maskLayerEdit = findChild<QLineEdit*>("maskLayerEdit");
-    inputLayersEdit = findChild<QLineEdit*>("inputLayersEdit");
-    dbNameEdit = findChild<QLineEdit*>("dbNameEdit");
-    runButton = findChild<QPushButton*>("runButton");
-    cancelButton = findChild<QPushButton*>("cancelButton");
-    logText = findChild<QTextEdit*>("logText");
+    // Layout file input
+    QHBoxLayout *fileLayout = new QHBoxLayout();
+    fileLayout->addWidget(new QLabel("Layout File:"));
+    layoutFileEdit = new QLineEdit(this);
+    browseButton = new QPushButton("Browse", this);
+    fileLayout->addWidget(layoutFileEdit);
+    fileLayout->addWidget(browseButton);
+    layout->addLayout(fileLayout);
 
+    // Mask layer input
+    layout->addWidget(new QLabel("Mask Layer Number:"));
+    maskLayerEdit = new QLineEdit("1", this);
+    layout->addWidget(maskLayerEdit);
+
+    // Input layers input
+    layout->addWidget(new QLabel("Input Layers Numbers:"));
+    inputLayersEdit = new QLineEdit("2", this);
+    layout->addWidget(inputLayersEdit);
+
+    // Database name input
+    layout->addWidget(new QLabel("Database Name:"));
+    dbNameEdit = new QLineEdit("test_db", this);
+    layout->addWidget(dbNameEdit);
+
+    // Buttons
+    runButton = new QPushButton("Run DFM Pattern Capture", this);
+    cancelButton = new QPushButton("Cancel", this);
+    layout->addWidget(runButton);
+    layout->addWidget(cancelButton);
+
+    // Log output
+    logText = new QTextEdit(this);
+    logText->setReadOnly(true);
+    layout->addWidget(logText);
+
+    // Process setup
     process = new QProcess(this);
     connect(browseButton, &QPushButton::clicked, this, &BatchPatternCapture::browseLayoutFile);
     connect(runButton, &QPushButton::clicked, this, &BatchPatternCapture::runPatternCapture);
@@ -131,7 +156,7 @@ bool BatchPatternCapture::validateInputs() {
     maskLayerEdit->text().toInt(&ok);
     if (!ok) return false;
     QStringList layers = inputLayersEdit->text().split(",");
-    for (const QString &layer : layers) {
+    for (const auto& layer : layers) {
         layer.trimmed().toInt(&ok);
         if (!ok) return false;
     }

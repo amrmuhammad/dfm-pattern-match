@@ -1,6 +1,4 @@
 <RCC>
     <qresource prefix="/">
-        <file>src/mainwindow.ui</file>
-        <file>src/batchpatterncapture.ui</file>
     </qresource>
 </RCC>

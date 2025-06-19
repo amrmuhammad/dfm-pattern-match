@@ -3,46 +3,50 @@
 
 #include <QWidget>
 #include <QListWidget>
+#include <QLabel>
+#include <QSplitter>
+#include <QTabWidget>
 #include <QTableView>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-#include <QPushButton>
-#include <QTabWidget>
-#include <QLabel>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include "../shared/DatabaseManager.h"
+#include <QPushButton>
 #include <QSettings>
+#include <QSqlQueryModel>
+#include "../shared/DatabaseManager.h"
 
 class DatabaseViewer : public QWidget {
     Q_OBJECT
 public:
-    DatabaseViewer(QWidget *parent = nullptr);
+    explicit DatabaseViewer(QWidget *parent = nullptr);
+    virtual ~DatabaseViewer();
 
 private slots:
-    void refreshPatterns();
     void configureDatabase();
     void onDatabaseSelected(QListWidgetItem *item);
     void onPatternSelected(QListWidgetItem *item);
+    void refreshPatterns();
 
 private:
+    void loadDatabases();
     void loadPatterns();
     void renderPolygon(const QString &coordinates);
     void loadSettings();
     void saveSettings();
 
+    DatabaseManager *dbManager;
     QListWidget *databasesList;
     QListWidget *patternsList;
     QLabel *databasesListLabel;
     QLabel *patternsListLabel;
-    QGraphicsView *graphicsView;
-    QGraphicsScene *scene;
-    QTableView *tableView;
     QPushButton *refreshButton;
     QPushButton *dbConfigButton;
     QTabWidget *rightTabs;
-    DatabaseManager *dbManager;
+    QTableView *tableView;
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
     QSettings *settings;
 };
 
-#endif
+#endif // DATABASEVIEWER_H

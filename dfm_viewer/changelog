@@ -1,0 +1,16 @@
+version 0.13:
+------------
+
+I want to make the following changes to the DFM Viewer project:
+
+1-  Changes in Layout Viewer:
+
+The Layout (GDSII/OASIS) File Viewer window will be open by default when the application starts (no need to open it from Tools menu)
+
+2- Changes in DFM Patterns Database Viewer:
+
+- Add a widget that will be on the left side of the DFM Patterns Database Viewer window. This widget will contain two widgets vertically. The top one will display a list of the patterns databases from which we are retrieving the patterns. The bottom one will display a list of patterns IDs of the patterns stored in the database that the user selects from the top databases list. The top widget should have a label with the content "Patterns Databases List". The bottom widget should have a label with the content "Patterns List for database: "THe name of the patterns database"" which is the patterns 
+database that the user selected from the Top patterns databases list 
+
+
+- The right side of the patterns database viewer will have a widget with multiple panels. When the user selects a pattern from the bottom left widget (the one containing the patterns list), the geometries of the pattern will be displayed in a geometries panel. The metadata of the patterns will be displayed in another panel. 

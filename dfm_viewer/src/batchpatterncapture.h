@@ -2,17 +2,17 @@
 #define BATCHPATTERNCAPTURE_H
 
 #include <QMainWindow>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QTextEdit>
-#include <QVBoxLayout>
-#include <QProcess>
 #include <QSettings>
+#include <QProcess>
+
+class QLineEdit;
+class QPushButton;
+class QTextEdit;
 
 class BatchPatternCapture : public QMainWindow {
     Q_OBJECT
 public:
-    BatchPatternCapture(QWidget *parent = nullptr);
+    explicit BatchPatternCapture(QWidget *parent = nullptr);
 
 private slots:
     void browseLayoutFile();
@@ -26,18 +26,17 @@ private:
     void loadSettings();
     void saveSettings();
 
+    QSettings *settings;
     QLineEdit *layoutFileEdit;
+    QPushButton *browseButton;
     QLineEdit *maskLayerEdit;
     QLineEdit *inputLayersEdit;
     QLineEdit *dbNameEdit;
     QPushButton *runButton;
     QPushButton *cancelButton;
-    QPushButton *browseButton;
     QTextEdit *logText;
     QProcess *process;
-    QSettings *settings;
     QString programPath;
-    QWidget *centralWidget;
 };
 
-#endif
+#endif // BATCHPATTERNCAPTURE_H

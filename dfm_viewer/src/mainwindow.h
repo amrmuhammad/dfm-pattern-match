@@ -2,37 +2,36 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QStatusBar>
 #include <QSettings>
-#include <QMenu>
-#include <QAction>
 #include "databaseviewer.h"
 #include "gdsviewer.h"
 #include "batchpatterncapture.h"
 
+class QMenu;
+class QAction;
+class QStatusBar;
+
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
-    MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
 private slots:
     void openBatchPatternCapture();
+    void loadSettings();
+    void saveSettings();
 
 private:
-    void saveSettings();
-    void loadSettings();
-    void setupMenuBar();
-
+    QSettings *settings;
     DatabaseViewer *dbViewer;
     GdsViewer *gdsViewer;
     BatchPatternCapture *batchPatternCapture;
-    QStatusBar *statusBar;
-    QSettings *settings;
     QMenu *fileMenu;
     QMenu *toolsMenu;
     QAction *exitAction;
     QAction *batchPatternCaptureAction;
+    QStatusBar *statusBar;
 };
 
-#endif
+#endif // MAINWINDOW_H

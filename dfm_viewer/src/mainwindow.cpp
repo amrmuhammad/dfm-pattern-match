@@ -3,30 +3,48 @@
 #include <QMenuBar>
 #include <QAction>
 #include <QApplication>
-#include <QDebug>
-#include <QtUiTools/QUiLoader>
-#include <QFile>
+#include <QStatusBar>
+#include <QVBoxLayout>
+#include <QWidget>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
 
-    // Load UI file
-    QUiLoader loader;
-    QFile file(":/mainwindow.ui");
-    file.open(QFile::ReadOnly);
-    QWidget *ui = loader.load(&file, this);
-    file.close();
-    setCentralWidget(ui);
+    // Create central widget and layout
+    QWidget *centralWidget = new QWidget(this);
+    QVBoxLayout *centralLayout = new QVBoxLayout(centralWidget);
+    setCentralWidget(centralWidget);
 
-    // Find widgets
-    dbViewer = new DatabaseViewer(findChild<QWidget*>("dbViewerPlaceholder"));
-    statusBar = findChild<QStatusBar*>("statusBar");
-    fileMenu = findChild<QMenu*>("fileMenu");
-    toolsMenu = findChild<QMenu*>("toolsMenu");
-    exitAction = findChild<QAction*>("exitAction");
-    batchPatternCaptureAction = findChild<QAction*>("batchPatternCaptureAction");
+    // Create placeholder for DatabaseViewer
+    QWidget *dbViewerPlaceholder = new QWidget(centralWidget);
+    centralLayout->addWidget(dbViewerPlaceholder);
 
+    // Instantiate DatabaseViewer
+    dbViewer = new DatabaseViewer(dbViewerPlaceholder);
+    dbViewer->setParent(dbViewerPlaceholder);
+
+    // Create menu bar
+    QMenuBar *menuBar = new QMenuBar(this);
+    setMenuBar(menuBar);
+
+    // File menu
+    fileMenu = new QMenu("File", this);
+    exitAction = new QAction("Exit", this);
+    fileMenu->addAction(exitAction);
+    menuBar->addMenu(fileMenu);
+
+    // Tools menu
+    toolsMenu = new QMenu("Tools", this);
+    batchPatternCaptureAction = new QAction("Batch Pattern Capture", this);
+    toolsMenu->addAction(batchPatternCaptureAction);
+    menuBar->addMenu(toolsMenu);
+
+    // Status bar
+    statusBar = new QStatusBar(this);
+    setStatusBar(statusBar);
+
+    // Initialize other components
     gdsViewer = new GdsViewer();
     batchPatternCapture = nullptr;
 
@@ -37,7 +55,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
     connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
 
-    // Show GdsViewer by default
+    // Show GdsViewer by default (version 0.13)
     gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
     gdsViewer->setWindowTitle("GDS/OASIS Viewer");
     gdsViewer->resize(800, 600);

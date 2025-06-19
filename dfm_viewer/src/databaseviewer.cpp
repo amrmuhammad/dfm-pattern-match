@@ -79,6 +79,14 @@ DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
     LOG_INFO("DatabaseViewer initialized");
 }
 
+DatabaseViewer::~DatabaseViewer() {
+    LOG_FUNCTION();
+    saveSettings();
+    delete dbManager;
+    delete settings;
+    LOG_INFO("DatabaseViewer destroyed");
+}
+
 void DatabaseViewer::configureDatabase() {
     LOG_FUNCTION();
     bool ok;
@@ -163,7 +171,7 @@ void DatabaseViewer::onPatternSelected(QListWidgetItem *item) {
     LOG_FUNCTION();
     int patternId = item->text().toInt();
     scene->clear();
-    loadPatterns();
+    //loadPatterns(patternId);
 }
 
 void DatabaseViewer::loadPatterns() {
@@ -244,3 +252,4 @@ void DatabaseViewer::saveSettings() {
     LOG_FUNCTION();
     settings->sync();
 }
+
