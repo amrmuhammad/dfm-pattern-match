@@ -1,20 +1,14 @@
 #ifndef ZOOMEVENTFILTER_H
-#define ZOOMEVENTFILTER_H
-
-#include <QObject>
+#define ZOOMEVENTFILTER_H#include <QObject>
 #include <QGraphicsView>
 #include <QEvent>
-#include <QWheelEvent>
-
-class ZoomEventFilter : public QObject {
+#include <QWheelEvent>class ZoomEventFilter : public QObject {
     Q_OBJECT
 public:
     ZoomEventFilter(QGraphicsView *view, QObject *parent = nullptr)
         : QObject(parent), graphicsView(view) {
         graphicsView->setProperty("scale", 1.0); // Initialize scale
-    }
-
-protected:
+    }protected:
     bool eventFilter(QObject *obj, QEvent *event) override {
         if (event->type() == QEvent::Wheel && obj == graphicsView) {
             QWheelEvent *wheelEvent = static_cast<QWheelEvent*>(event);
@@ -25,10 +19,7 @@ protected:
             return true; // Event handled
         }
         return QObject::eventFilter(obj, event);
-    }
-
-private:
+    }private:
     QGraphicsView *graphicsView;
-};
+};#endif // ZOOMEVENTFILTER_H
 
-#endif // ZOOMEVENTFILTER_H

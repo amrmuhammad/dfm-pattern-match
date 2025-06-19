@@ -2,34 +2,46 @@
 #define DATABASEVIEWER_H
 
 #include <QWidget>
-#include <QSettings>
+#include <QListWidget>
 #include <QTableView>
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QPushButton>
+#include <QTabWidget>
+#include <QLabel>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include "../shared/DatabaseManager.h"
 
 class DatabaseViewer : public QWidget {
     Q_OBJECT
 public:
-    explicit DatabaseViewer(QWidget *parent = nullptr);
+    DatabaseViewer(QWidget *parent = nullptr);
+
 private slots:
     void refreshPatterns();
     void configureDatabase();
-private:
-    QSettings* settings;
-    DatabaseManager* db_manager;
-    QPushButton* refreshButton;
-    QPushButton* dbConfigButton;
-    QTableView* tableView;
-    QGraphicsView* graphicsView;
-    QGraphicsScene* scene;
+    void onDatabaseSelected(QListWidgetItem *item);
+    void onPatternSelected(QListWidgetItem *item);
 
+private:
     void loadPatterns();
     void renderPolygon(const QString &coordinates);
     void loadSettings();
     void saveSettings();
+
+    QListWidget *databasesList;
+    QListWidget *patternsList;
+    QLabel *databasesListLabel;
+    QLabel *patternsListLabel;
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
+    QTableView *tableView;
+    QPushButton *refreshButton;
+    QPushButton *dbConfigButton;
+    QTabWidget *rightTabs;
+    DatabaseManager *dbManager;
+    QSettings *settings;
 };
 
-#endif // DATABASEVIEWER_H
+#endif

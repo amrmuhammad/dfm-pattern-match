@@ -275,3 +275,25 @@ std::vector<Geometry> DatabaseManager::getGeometries(int pattern_id) {
         return geometries;
     }
 }
+
+std::vector<std::string> DatabaseManager::getAvailableDatabases() {
+    LOG_FUNCTION();
+    std::vector<std::string> databases;
+    try {
+        std::string conn_str = "dbname=postgres user=" + user_ +
+                               " password=" + password_ + " host=" + host_ +
+                               " port=" + port_;
+        pqxx::connection temp_conn(conn_str);
+        pqxx::work txn(temp_conn);
+        std::string query = "SELECT datname FROM pg_database WHERE datistemplate = false AND datname != 'postgres'";
+        pqxx::result res = txn.exec(query);
+        for (const auto& row : res) {
+            databases.push_back(row[0].as<std::string>());
+        }
+        LOG_INFO("Retrieved " + std::to_string(databases.size()) + " databases");
+        return databases;
+    } catch (const std::exception& e) {
+        reportError("Error retrieving databases: " + std::string(e.what()));
+        return databases;
+    }
+}

@@ -1,0 +1,1846 @@
+Output file: /home/amrmuhammad/dev/dfm_pattern_match4/scripts/concatenated_files.txt
+
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/batchpatterncapture.cpp
+
+#include "batchpatterncapture.h"
+#include "../../shared/Logging.h"
+#include "../../shared/LayoutFileReader.h"
+#include <QFileDialog>
+#include <QUiLoader>
+#include <QFile>
+#include <QMessageBox>
+
+BatchPatternCapture::BatchPatternCapture(QWidget *parent) : QMainWindow(parent) {
+    LOG_FUNCTION();
+    settings = new QSettings("MyOrg", "DFMPatternViewer", this);
+    process = new QProcess(this);
+    dbManager = new DatabaseManager("test_db", "postgres", "", "localhost", "5432", [](const std::string &msg) {
+        LOG_ERROR("Database error: " + msg);
+    });
+
+    // Load UI file
+    QUiLoader loader;
+    QFile file(":/batchpatterncapture.ui");
+    file.open(QFile::ReadOnly);
+    QWidget *ui = loader.load(&file, this);
+    file.close();
+    setCentralWidget(ui);
+
+    // Find widgets
+    layoutFileEdit = findChild<QLineEdit*>("layoutFileEdit");
+    browseButton = findChild<QPushButton*>("browseButton");
+    maskLayerEdit = findChild<QLineEdit*>("maskLayerEdit");
+    inputLayersEdit = findChild<QLineEdit*>("inputLayersEdit");
+    dbNameEdit = findChild<QLineEdit*>("dbNameEdit");
+    runButton = findChild<QPushButton*>("runButton");
+    cancelButton = findChild<QPushButton*>("cancelButton");
+    logText = findChild<QTextEdit*>("logText");
+    processLabel = findChild<QLabel*>("processLabel");
+
+    connect(browseButton, &QPushButton::clicked, this, &BatchPatternCapture::browseLayoutFile);
+    connect(runButton, &QPushButton::clicked, this, &BatchPatternCapture::runPatternCapture);
+    connect(cancelButton, &QPushButton::clicked, this, &BatchPatternCapture::cancelProcess);
+    connect(process, &QProcess::readyReadStandardOutput, this, &BatchPatternCapture::readProcessOutput);
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &BatchPatternCapture::processFinished);
+
+    loadSettings();
+    LOG_INFO("BatchPatternCapture initialized");
+}
+
+void BatchPatternCapture::browseLayoutFile() {
+    LOG_FUNCTION();
+    QString fileName = QFileDialog::getOpenFileName(this, "Select Layout File", "", "Layout Files (*.gds *.oas)");
+    if (!fileName.isEmpty()) {
+        layoutFileEdit->setText(fileName);
+        LOG_INFO("Selected file: " + fileName.toStdString());
+    }
+}
+
+void BatchPatternCapture::runPatternCapture() {
+    LOG_FUNCTION();
+    QString layoutFile = layoutFileEdit->text();
+    QString maskLayer = maskLayerEdit->text();
+    QString inputLayers = inputLayersEdit->text();
+    QString dbName = dbNameEdit->text();
+
+    if (layoutFile.isEmpty() || maskLayer.isEmpty() || inputLayers.isEmpty() || dbName.isEmpty()) {
+        QMessageBox::warning(this, "Input Error", "All fields must be filled.");
+        LOG_ERROR("Missing input fields");
+        return;
+    }
+
+    LayoutFileReader reader;
+    if (!reader.loadFile(layoutFile.toStdString())) {
+        QMessageBox::critical(this, "Error", "Failed to load layout file.");
+        LOG_ERROR("Failed to load file: " + layoutFile.toStdString());
+        return;
+    }
+
+    MultiLayerPattern pattern;
+    pattern.mask_layer_number = maskLayer.toInt();
+    pattern.mask_layer_datatype = 0; // Default datatype
+    pattern.mask_polygon = reader.getPolygons(pattern.mask_layer_number)[0]; // First polygon as mask
+    QStringList layerList = inputLayers.split(",");
+    for (const QString& layer : layerList) {
+        int layerNum = layer.trimmed().toInt();
+        Layer inputLayer(layerNum, 0);
+        inputLayer.polygons = reader.getPolygons(layerNum);
+        pattern.input_layers.push_back(inputLayer);
+    }
+    pattern.pattern_id = "hash_" + std::to_string(std::rand()); // Placeholder hash
+
+    dbManager->disconnect();
+    dbManager = new DatabaseManager(dbName.toStdString(), "postgres", "", "localhost", "5432", [](const std::string &msg) {
+        LOG_ERROR("Database error: " + msg);
+    });
+    if (!dbManager->createDatabaseIfNotExists() || !dbManager->createTables() || !dbManager->storePattern(pattern, layoutFile.toStdString())) {
+        QMessageBox::critical(this, "Error", "Failed to store pattern in database.");
+        LOG_ERROR("Failed to store pattern in database: " + dbName.toStdString());
+        return;
+    }
+
+    logText->append("Pattern stored successfully in database: " + dbName);
+    LOG_INFO("Pattern stored in database: " + dbName.toStdString());
+}
+
+void BatchPatternCapture::cancelProcess() {
+    LOG_FUNCTION();
+    if (process->state() == QProcess::Running) {
+        process->kill();
+        logText->append("Process cancelled.");
+        LOG_INFO("Process cancelled");
+    }
+}
+
+void BatchPatternCapture::readProcessOutput() {
+    LOG_FUNCTION();
+    QString output = QString::fromUtf8(process->readAllStandardOutput());
+    logText->append(output);
+    LOG_DEBUG("Process output: " + output.toStdString());
+}
+
+void BatchPatternCapture::processFinished(int exitCode, QProcess::ExitStatus exitStatus) {
+    LOG_FUNCTION();
+    QString message = exitStatus == QProcess::NormalExit
+        ? QString("Process finished with exit code %1").arg(exitCode)
+        : "Process crashed.";
+    logText->append(message);
+    LOG_INFO(message.toStdString());
+}
+
+void BatchPatternCapture::loadSettings() {
+    LOG_FUNCTION();
+    layoutFileEdit->setText(settings->value("layoutFile", "").toString());
+    maskLayerEdit->setText(settings->value("maskLayer", "1").toString());
+    inputLayersEdit->setText(settings->value("inputLayers", "2").toString());
+    dbNameEdit->setText(settings->value("dbName", "test_db").toString());
+    LOG_DEBUG("Loaded BatchPatternCapture settings");
+}
+
+void BatchPatternCapture::saveSettings() {
+    LOG_FUNCTION();
+    settings->setValue("layoutFile", layoutFileEdit->text());
+    settings->setValue("maskLayer", maskLayerEdit->text());
+    settings->setValue("inputLayers", inputLayersEdit->text());
+    settings->setValue("dbName", dbNameEdit->text());
+    settings->sync();
+    LOG_DEBUG("Saved BatchPatternCapture settings");
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.cpp
+
+#include "databaseviewer.h"
+#include "ZoomEventFilter.h"
+#include "Logging.h"
+#include "../shared/DatabaseManager.h"
+#include <QStandardItemModel>
+#include <QDebug>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QMessageBox>
+#include <QInputDialog>
+
+DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
+    LOG_FUNCTION();
+    settings = new QSettings("MyOrg", "DFMPatternViewer", this);
+    db_manager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
+                                     settings->value("dbPassword", "").toString().toStdString(),
+                                     settings->value("dbHost", "localhost").toString().toStdString(),
+                                     settings->value("dbPort", "5432").toString().toStdString(),
+                                     [this](const std::string& error) {
+                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                     });
+
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    refreshButton = new QPushButton("Refresh Patterns", this);
+    dbConfigButton = new QPushButton("Configure Database", this);
+    tableView = new QTableView(this);
+    graphicsView = new QGraphicsView(this);
+    scene = new QGraphicsScene(this);
+    graphicsView->setScene(scene);
+    graphicsView->setRenderHint(QPainter::Antialiasing);
+    graphicsView->setDragMode(QGraphicsView::ScrollHandDrag);
+    layout->addWidget(refreshButton);
+    layout->addWidget(dbConfigButton);
+    layout->addWidget(tableView);
+    layout->addWidget(graphicsView);
+
+    graphicsView->installEventFilter(new ZoomEventFilter(graphicsView, this));
+
+    connect(refreshButton, &QPushButton::clicked, this, &DatabaseViewer::refreshPatterns);
+    connect(dbConfigButton, &QPushButton::clicked, this, &DatabaseViewer::configureDatabase);
+
+    if (db_manager->isConnected() || db_manager->connect()) {
+        db_manager->createTables();
+        loadPatterns();
+    }
+    LOG_INFO("DatabaseViewer initialized");
+}
+
+void DatabaseViewer::configureDatabase() {
+    LOG_FUNCTION();
+    bool ok;
+    QString dbName = QInputDialog::getText(this, "Database Configuration", "Database Name:",
+                                           QLineEdit::Normal, settings->value("dbName", "test_db").toString(), &ok);
+    if (!ok) return;
+    QString user = QInputDialog::getText(this, "Database Configuration", "Username:",
+                                         QLineEdit::Normal, settings->value("dbUser", "").toString(), &ok);
+    if (!ok) return;
+    QString password = QInputDialog::getText(this, "Database Configuration", "Password:",
+                                             QLineEdit::Password, settings->value("dbPassword", "").toString(), &ok);
+    if (!ok) return;
+    QString host = QInputDialog::getText(this, "Database Configuration", "Host:",
+                                         QLineEdit::Normal, settings->value("dbHost", "localhost").toString(), &ok);
+    if (!ok) return;
+    QString port = QInputDialog::getText(this, "Database Configuration", "Port:",
+                                         QLineEdit::Normal, settings->value("dbPort", "5432").toString(), &ok);
+    if (!ok) return;
+
+    settings->setValue("dbName", dbName);
+    settings->setValue("dbUser", user);
+    settings->setValue("dbPassword", password);
+    settings->setValue("dbHost", host);
+    settings->setValue("dbPort", port);
+    settings->sync();
+    LOG_INFO("Database configuration updated: dbName=" + dbName.toStdString() + ", host=" + host.toStdString());
+
+    db_manager->disconnect();
+    delete db_manager;
+    db_manager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
+                                     host.toStdString(), port.toStdString(),
+                                     [this](const std::string& error) {
+                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                     });
+    if (db_manager->isConnected() || db_manager->connect()) {
+        db_manager->createTables();
+        refreshPatterns();
+    }
+}
+
+void DatabaseViewer::refreshPatterns() {
+    LOG_FUNCTION();
+    scene->clear();
+    loadPatterns();
+}
+
+void DatabaseViewer::loadPatterns() {
+    LOG_FUNCTION();
+    if (!db_manager->isConnected() && !db_manager->connect()) {
+        LOG_WARN("No database connection");
+        return;
+    }
+    try {
+        auto patterns = db_manager->getPatterns();
+        auto geometries = db_manager->getGeometries();
+        QStandardItemModel *model = new QStandardItemModel(this);
+        model->setColumnCount(7);
+        model->setHorizontalHeaderLabels({"ID", "Pattern Hash", "Mask Layer", "Input Layers", "Layout File", "Area", "Perimeter"});
+
+        for (const auto& pattern : patterns) {
+            QList<QStandardItem*> items;
+            items << new QStandardItem(QString::number(pattern.id));
+            items << new QStandardItem(QString::fromStdString(pattern.pattern_hash));
+            items << new QStandardItem(QString::number(pattern.mask_layer_number));
+            items << new QStandardItem(QString::fromStdString(pattern.input_layers));
+            items << new QStandardItem(QString::fromStdString(pattern.layout_file_name));
+
+            double area = 0.0, perimeter = 0.0;
+            for (const auto& geom : geometries) {
+                if (geom.pattern_id == pattern.id) {
+                    area = geom.area;
+                    perimeter = geom.perimeter;
+                    renderPolygon(QString::fromStdString(geom.coordinates));
+                }
+            }
+            items << new QStandardItem(QString::number(area));
+            items << new QStandardItem(QString::number(perimeter));
+            model->appendRow(items);
+        }
+        tableView->setModel(model);
+        graphicsView->fitInView(scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+        LOG_INFO("Loaded " + std::to_string(patterns.size()) + " patterns from database");
+    } catch (const std::exception& e) {
+        QMessageBox::critical(this, "Database Error", QString("Query failed: %1").arg(e.what()));
+        LOG_ERROR("Database query failed: " + std::string(e.what()));
+    }
+}
+
+void DatabaseViewer::renderPolygon(const QString &coordinates) {
+    LOG_FUNCTION();
+    QJsonDocument doc = QJsonDocument::fromJson(coordinates.toUtf8());
+    if (!doc.isArray()) {
+        QMessageBox::critical(this, "Render Error", QString("Invalid JSON coordinates: %1").arg(coordinates));
+        LOG_ERROR("Invalid JSON coordinates: " + coordinates.toStdString());
+        return;
+    }
+    QPolygonF polygon;
+    QJsonArray points = doc.array();
+    for (const QJsonValue &point : points) {
+        if (point.isArray()) {
+            QJsonArray coords = point.toArray();
+            if (coords.size() == 2) {
+                polygon << QPointF(coords[0].toDouble(), coords[1].toDouble());
+            }
+        }
+    }
+    if (polygon.size() >= 3) {
+        scene->addPolygon(polygon, QPen(Qt::black), QBrush(QColor(0, 0, 255, 100)));
+        graphicsView->fitInView(scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+        LOG_DEBUG("Rendered polygon with " + std::to_string(polygon.size()) + " points");
+    } else {
+        LOG_WARN("Polygon not rendered: insufficient points (" + std::to_string(polygon.size()) + ")");
+    }
+}
+
+void DatabaseViewer::loadSettings() {
+    // Handled by QSettings in constructor
+}
+
+void DatabaseViewer::saveSettings() {
+    LOG_FUNCTION();
+    settings->sync();
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.cpp
+
+#include "gdsviewer.h"
+#include "ZoomEventFilter.h"
+#include "Logging.h"
+#include <QDebug>
+#include <QMessageBox>
+#include <QCoreApplication>
+#include <QThread>
+
+GdsViewer::GdsViewer(QWidget *parent) : QMainWindow(parent), reader(nullptr) {
+    LOG_FUNCTION();
+    centralWidget = new QWidget(this);
+    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
+    loadButton = new QPushButton("Load GDSII/OASIS File", this);
+    layerCombo = new QComboBox(this);
+    graphicsView = new QGraphicsView(this);
+    scene = new QGraphicsScene(this);
+    graphicsView->setScene(scene);
+    graphicsView->setRenderHint(QPainter::Antialiasing);
+    graphicsView->setDragMode(QGraphicsView::ScrollHandDrag);
+    progressDialog = new QProgressDialog("Loading file...", "Cancel", 0, 100, this);
+    progressDialog->setWindowModality(Qt::WindowModal);
+    progressDialog->setMinimumDuration(0);
+    progressDialog->hide();
+    layout->addWidget(loadButton);
+    layout->addWidget(layerCombo);
+    layout->addWidget(graphicsView);
+
+    setCentralWidget(centralWidget);
+    graphicsView->installEventFilter(new ZoomEventFilter(graphicsView, this));
+
+    connect(loadButton, &QPushButton::clicked, this, &GdsViewer::loadGdsFile);
+    connect(layerCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &GdsViewer::updateLayer);
+
+    LOG_INFO("GdsViewer initialized");
+}
+
+void GdsViewer::loadGdsFile() {
+    LOG_FUNCTION();
+    QString fileName = QFileDialog::getOpenFileName(this, "Open GDSII/OASIS File", "", "GDSII/OASIS Files (*.gds *.oas)");
+    if (fileName.isEmpty()) return;
+
+    try {
+        progressDialog->setValue(0);
+        progressDialog->show();
+        scene->clear();
+        layerCombo->clear();
+        if (reader) delete reader;
+        reader = new LayoutFileReader(fileName.toStdString());
+        for (int i = 0; i <= 100; i += 10) {
+            progressDialog->setValue(i);
+            QCoreApplication::processEvents();
+            QThread::msleep(100);
+        }
+        availableLayers = reader->getAvailableLayersAndDatatypes();
+        for (const auto& [layer, datatype] : availableLayers) {
+            layerCombo->addItem(QString("Layer %1:%2").arg(layer).arg(datatype));
+        }
+        if (!availableLayers.empty()) {
+            updateLayer(0);
+            LOG_INFO("Loaded file: " + fileName.toStdString() + " with " + std::to_string(availableLayers.size()) + " layers");
+        } else {
+            QMessageBox::warning(this, "Warning", "No layers found in file: " + fileName);
+            LOG_WARN("No layers found in file: " + fileName.toStdString());
+        }
+        progressDialog->hide();
+    } catch (const std::exception &e) {
+        progressDialog->hide();
+        QMessageBox::critical(this, "Error", QString("Failed to load GDSII/OASIS file: %1").arg(e.what()));
+        LOG_ERROR("Failed to load GDSII/OASIS file: " + std::string(e.what()));
+    }
+}
+
+void GdsViewer::updateLayer(int index) {
+    LOG_FUNCTION();
+    if (!reader || index < 0 || index >= static_cast<int>(availableLayers.size())) return;
+    try {
+        scene->clear();
+        Layer layer = reader->loadLayer(availableLayers[index].first, availableLayers[index].second);
+        renderLayer(layer);
+        LOG_INFO("Rendered layer " + std::to_string(availableLayers[index].first) + ":" + std::to_string(availableLayers[index].second) +
+                 " with " + std::to_string(layer.getPolygonCount()) + " polygons");
+    } catch (const std::exception &e) {
+        QMessageBox::critical(this, "Error", QString("Failed to load layer: %1").arg(e.what()));
+        LOG_ERROR("Failed to load layer: " + std::string(e.what()));
+    }
+}
+
+void GdsViewer::renderLayer(const Layer &layer) {
+    LOG_FUNCTION();
+    for (const auto &poly : layer.polygons) {
+        QPolygonF qpoly;
+        for (const auto &pt : poly.points) {
+            qpoly << QPointF(pt.x, pt.y);
+        }
+        scene->addPolygon(qpoly, QPen(Qt::black), QBrush(QColor(0, 0, 255, 100)));
+    }
+    graphicsView->fitInView(scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+    LOG_DEBUG("Rendered " + std::to_string(layer.polygons.size()) + " polygons");
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/main.cpp
+
+#include <QApplication>
+#include "mainwindow.h"
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    MainWindow window;
+    window.show();
+    return app.exec();
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.cpp
+
+#include "mainwindow.h"
+#include "Logging.h"
+#include <QMenuBar>
+#include <QAction>
+#include <QApplication>
+#include <QDebug>
+#include <QUiLoader>
+#include <QFile>
+
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
+    LOG_FUNCTION();
+    settings = new QSettings("MyOrg", "DFMPatternViewer", this);
+
+    // Load UI file
+    QUiLoader loader;
+    QFile file(":/mainwindow.ui");
+    file.open(QFile::ReadOnly);
+    QWidget *ui = loader.load(&file, this);
+    file.close();
+    setCentralWidget(ui);
+
+    // Find widgets
+    dbViewer = new DatabaseViewer(findChild<QWidget*>("dbViewerPlaceholder"));
+    statusBar = findChild<QStatusBar*>("statusBar");
+    fileMenu = findChild<QMenu*>("fileMenu");
+    toolsMenu = findChild<QMenu*>("toolsMenu");
+    exitAction = findChild<QAction*>("exitAction");
+    batchPatternCaptureAction = findChild<QAction*>("batchPatternCaptureAction");
+
+    gdsViewer = new GdsViewer();
+    batchPatternCapture = nullptr;
+
+    setWindowTitle("DFM Patterns Database Viewer");
+    resize(1200, 800);
+
+    // Connect signals
+    connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
+    connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
+
+    // Show GdsViewer by default
+    gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
+    gdsViewer->setWindowTitle("GDS/OASIS Viewer");
+    gdsViewer->resize(800, 600);
+    gdsViewer->show();
+
+    loadSettings();
+    LOG_INFO("MainWindow initialized");
+}
+
+MainWindow::~MainWindow() {
+    LOG_FUNCTION();
+    saveSettings();
+    delete settings;
+    delete gdsViewer;
+    delete batchPatternCapture;
+    LOG_INFO("MainWindow destroyed");
+}
+
+void MainWindow::openBatchPatternCapture() {
+    LOG_FUNCTION();
+    if (!batchPatternCapture) {
+        batchPatternCapture = new BatchPatternCapture();
+        batchPatternCapture->setAttribute(Qt::WA_DeleteOnClose);
+        batchPatternCapture->setWindowTitle("Batch PatternCapture");
+        batchPatternCapture->resize(800, 600);
+    }
+    batchPatternCapture->show();
+    batchPatternCapture->raise();
+    LOG_INFO("Batch PatternCapture opened");
+}
+
+void MainWindow::loadSettings() {
+    LOG_FUNCTION();
+    if (settings->contains("geometry")) {
+        restoreGeometry(settings->value("geometry").toByteArray());
+    }
+    LOG_DEBUG("Loaded MainWindow settings");
+}
+
+void MainWindow::saveSettings() {
+    LOG_FUNCTION();
+    settings->setValue("geometry", saveGeometry());
+    settings->sync();
+    LOG_DEBUG("Saved MainWindow settings");
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/batchpatterncapture.h
+
+#ifndef BATCHPATTERNCAPTURE_H
+#define BATCHPATTERNCAPTURE_H
+
+#include <QMainWindow>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QTextEdit>
+#include <QVBoxLayout>
+#include <QProcess>
+#include <QSettings>
+
+class BatchPatternCapture : public QMainWindow {
+    Q_OBJECT
+public:
+    BatchPatternCapture(QWidget *parent = nullptr);
+
+private slots:
+    void browseLayoutFile();
+    void runPatternCapture();
+    void cancelProcess();
+    void readProcessOutput();
+    void processFinished(int exitCode, QProcess::ExitStatus exitStatus);
+
+private:
+    bool validateInputs();
+    void loadSettings();
+    void saveSettings();
+
+    QLineEdit *layoutFileEdit;
+    QLineEdit *maskLayerEdit;
+    QLineEdit *inputLayersEdit;
+    QLineEdit *dbNameEdit;
+    QPushButton *runButton;
+    QPushButton *cancelButton;
+    QPushButton *browseButton;
+    QTextEdit *logText;
+    QProcess *process;
+    QSettings *settings;
+    QString programPath;
+    QWidget *centralWidget;
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/databaseviewer.h
+
+#ifndef DATABASEVIEWER_H
+#define DATABASEVIEWER_H
+
+#include <QWidget>
+#include <QListWidget>
+#include <QTableWidget>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QPushButton>
+#include <QTabWidget>
+#include <QLabel>
+#include "../shared/DatabaseManager.h"
+
+class DatabaseViewer : public QWidget {
+    Q_OBJECT
+public:
+    DatabaseViewer(QWidget *parent = nullptr);
+
+private slots:
+    void refreshDatabases();
+    void onDatabaseSelected(QListWidgetItem *item);
+    void onPatternSelected(QListWidgetItem *item);
+    void configureDatabase();
+
+private:
+    void renderPattern(const Pattern &pattern);
+    void updateMetadata(const Pattern &pattern);
+
+    QListWidget *databasesList;
+    QListWidget *patternsList;
+    QLabel *patternsListLabel;
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
+    QTableWidget *metadataTable;
+    QPushButton *refreshButton;
+    QPushButton *configureButton;
+    QTabWidget *rightTabs;
+    DatabaseManager *dbManager;
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/gdsviewer.h
+
+#ifndef GDSVIEWER_H
+#define GDSVIEWER_H
+
+#include <QMainWindow> // Changed from QWidget
+#include <QGraphicsView>
+#include <QVBoxLayout>
+#include <QPushButton>
+#include <QFileDialog>
+#include <QComboBox>
+#include <QProgressDialog>
+#include "LayoutFileReader.h"
+
+class GdsViewer : public QMainWindow { // Changed from QWidget
+    Q_OBJECT
+public:
+    GdsViewer(QWidget *parent = nullptr);
+
+private slots:
+    void loadGdsFile();
+    void updateLayer(int index);
+
+private:
+    void renderLayer(const Layer &layer);
+
+    QGraphicsView *graphicsView;
+    QGraphicsScene *scene;
+    QPushButton *loadButton;
+    QComboBox *layerCombo;
+    LayoutFileReader *reader;
+    std::vector<std::pair<int, int>> availableLayers;
+    QProgressDialog *progressDialog;
+    QWidget *centralWidget; // Added for QMainWindow
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/mainwindow.h
+
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
+
+#include <QMainWindow>
+#include <QStatusBar>
+#include <QSettings>
+#include <QMenu>
+#include <QAction>
+#include "databaseviewer.h"
+#include "gdsviewer.h"
+#include "batchpatterncapture.h"
+
+class MainWindow : public QMainWindow {
+    Q_OBJECT
+public:
+    MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
+
+private slots:
+    void openBatchPatternCapture();
+
+private:
+    void saveSettings();
+    void loadSettings();
+    void setupMenuBar();
+
+    DatabaseViewer *dbViewer;
+    GdsViewer *gdsViewer;
+    BatchPatternCapture *batchPatternCapture;
+    QStatusBar *statusBar;
+    QSettings *settings;
+    QMenu *fileMenu;
+    QMenu *toolsMenu;
+    QAction *exitAction;
+    QAction *batchPatternCaptureAction;
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/dfm_viewer/src/ZoomEventFilter.h
+
+#ifndef ZOOMEVENTFILTER_H
+#define ZOOMEVENTFILTER_H
+
+#include <QObject>
+#include <QGraphicsView>
+#include <QEvent>
+#include <QWheelEvent>
+
+class ZoomEventFilter : public QObject {
+    Q_OBJECT
+public:
+    ZoomEventFilter(QGraphicsView *view, QObject *parent = nullptr)
+        : QObject(parent), graphicsView(view) {
+        graphicsView->setProperty("scale", 1.0); // Initialize scale
+    }
+
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        if (event->type() == QEvent::Wheel && obj == graphicsView) {
+            QWheelEvent *wheelEvent = static_cast<QWheelEvent*>(event);
+            qreal factor = wheelEvent->angleDelta().y() > 0 ? 1.1 : 0.9;
+            qreal currentScale = graphicsView->property("scale").toDouble() * factor;
+            graphicsView->setProperty("scale", currentScale);
+            graphicsView->scale(factor, factor);
+            return true; // Event handled
+        }
+        return QObject::eventFilter(obj, event);
+    }
+
+private:
+    QGraphicsView *graphicsView;
+};
+
+#endif // ZOOMEVENTFILTER_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.cpp
+
+#include "DatabaseManager.h"
+#include "Logging.h"
+#include <sstream>
+#include <iomanip>
+#include <cstdlib>
+
+DatabaseManager::DatabaseManager(const std::string& db_name, const std::string& user,
+                                 const std::string& password, const std::string& host,
+                                 const std::string& port, ErrorCallback error_callback)
+    : db_name_(db_name), user_(user), password_(password), host_(host), port_(port),
+      error_callback_(std::move(error_callback)) {
+    LOG_FUNCTION();
+    if (user_.empty()) user_ = std::getenv("PGUSER") ? std::getenv("PGUSER") : "";
+    if (password_.empty()) password_ = std::getenv("PGPASSWORD") ? std::getenv("PGPASSWORD") : "";
+}
+
+DatabaseManager::~DatabaseManager() {
+    LOG_FUNCTION();
+    disconnect();
+}
+
+void DatabaseManager::setErrorCallback(ErrorCallback callback) {
+    error_callback_ = std::move(callback);
+}
+
+void DatabaseManager::reportError(const std::string& message, const std::string& query) {
+    std::ostringstream oss;
+    oss << message;
+    if (!query.empty()) {
+        oss << " | Query: " << query;
+    }
+    LOG_ERROR(oss.str());
+    if (error_callback_) error_callback_(oss.str());
+}
+
+bool DatabaseManager::isConnected() const {
+    return conn_ && conn_->is_open();
+}
+
+bool DatabaseManager::connect() {
+    LOG_FUNCTION();
+    if (isConnected()) return true;
+
+    try {
+        std::string conn_str = "dbname=" + db_name_ + " user=" + user_ +
+                               " password=" + password_ + " host=" + host_ +
+                               " port=" + port_;
+        conn_ = std::make_unique<pqxx::connection>(conn_str);
+        LOG_INFO("Connected to database: " + db_name_);
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Connection failed: " + std::string(e.what()));
+        conn_.reset();
+        return false;
+    }
+}
+
+void DatabaseManager::disconnect() {
+    LOG_FUNCTION();
+    if (isConnected()) {
+        conn_.reset();
+        LOG_INFO("Disconnected from database: " + db_name_);
+    }
+}
+
+bool DatabaseManager::createDatabaseIfNotExists() {
+    LOG_FUNCTION();
+    try {
+        std::string conn_str = "dbname=postgres user=" + user_ +
+                               " password=" + password_ + " host=" + host_ +
+                               " port=" + port_;
+        pqxx::connection temp_conn(conn_str);
+        pqxx::work txn(temp_conn);
+        std::string query = "SELECT 1 FROM pg_database WHERE datname = '" + db_name_ + "'";
+        pqxx::result res = txn.exec(query);
+        if (res.empty()) {
+            query = "CREATE DATABASE \"" + db_name_ + "\"";
+            txn.exec0(query);
+            LOG_INFO("Created database: " + db_name_);
+            txn.commit();
+        }
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Failed to create database " + db_name_ + ": " + std::string(e.what()));
+        return false;
+    }
+}
+
+bool DatabaseManager::createTables() {
+    LOG_FUNCTION();
+    if (!isConnected() && !connect()) return false;
+
+    std::string query;
+    try {
+        pqxx::work txn(*conn_);
+        query = R"(
+            CREATE TABLE IF NOT EXISTS patterns (
+                id SERIAL PRIMARY KEY,
+                pattern_hash VARCHAR(64) UNIQUE,
+                mask_layer_number INTEGER,
+                mask_layer_datatype INTEGER,
+                input_layers JSONB,
+                layout_file_name VARCHAR(255),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        )";
+        txn.exec0(query);
+        query = R"(
+            CREATE TABLE IF NOT EXISTS pattern_geometries (
+                id SERIAL PRIMARY KEY,
+                pattern_id INTEGER REFERENCES patterns(id),
+                layer_number INTEGER,
+                datatype INTEGER,
+                geometry_type VARCHAR(20),
+                coordinates JSONB,
+                area DOUBLE PRECISION,
+                perimeter DOUBLE PRECISION
+            )
+        )";
+        txn.exec0(query);
+        txn.commit();
+        LOG_INFO("Created tables in database: " + db_name_);
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Failed to create tables: " + std::string(e.what()), query);
+        return false;
+    }
+}
+
+bool DatabaseManager::storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name) {
+    LOG_FUNCTION();
+    if (!isConnected() && !connect()) return false;
+
+    try {
+        pqxx::work txn(*conn_);
+        int pattern_id = insertPatternMetadata(txn, pattern, layout_file_name);
+        if (pattern_id < 0) throw std::runtime_error("Failed to insert pattern metadata");
+        if (!insertPatternGeometries(txn, pattern_id, pattern))
+            throw std::runtime_error("Failed to insert pattern geometries");
+        txn.commit();
+        LOG_INFO("Stored pattern: " + pattern.pattern_id);
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Error storing pattern: " + std::string(e.what()));
+        return false;
+    }
+}
+
+int DatabaseManager::insertPatternMetadata(pqxx::work& txn, const MultiLayerPattern& pattern, const std::string& layout_file_name) {
+    LOG_FUNCTION();
+    std::string query;
+    try {
+        std::ostringstream layers_stream;
+        layers_stream << "[";
+        for (size_t i = 0; i < pattern.input_layers.size(); ++i) {
+            if (i > 0) layers_stream << ",";
+            layers_stream << "{\"layer\":" << pattern.input_layers[i].layer_number
+                          << ",\"datatype\":" << pattern.input_layers[i].datatype << "}";
+        }
+        layers_stream << "]";
+        std::string layers_str = layers_stream.str();
+
+        query = "INSERT INTO patterns (pattern_hash, mask_layer_number, mask_layer_datatype, input_layers, layout_file_name) "
+                "VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING id";
+        pqxx::result res = txn.exec_params(query,
+            pattern.pattern_id, pattern.mask_layer_number, pattern.mask_layer_datatype,
+            layers_str, layout_file_name);
+        if (res.empty()) throw std::runtime_error("No ID returned");
+        int pattern_id = res[0][0].as<int>();
+        LOG_INFO("Inserted pattern with ID: " + std::to_string(pattern_id));
+        return pattern_id;
+    } catch (const std::exception& e) {
+        reportError("Error inserting pattern metadata: " + std::string(e.what()), query);
+        return -1;
+    }
+}
+
+bool DatabaseManager::insertPatternGeometries(pqxx::work& txn, int pattern_id, const MultiLayerPattern& pattern) {
+    LOG_FUNCTION();
+    for (const auto& layer : pattern.input_layers) {
+        for (const auto& polygon : layer.polygons) {
+            if (!insertPolygon(txn, pattern_id, layer.layer_number, layer.datatype, polygon)) return false;
+        }
+    }
+    return insertPolygon(txn, pattern_id, pattern.mask_layer_number, pattern.mask_layer_datatype, pattern.mask_polygon);
+}
+
+bool DatabaseManager::insertPolygon(pqxx::work& txn, int pattern_id, int layer_number, int datatype, const Polygon& polygon) {
+    LOG_FUNCTION();
+    std::string query;
+    try {
+        std::ostringstream json_stream;
+        json_stream << std::fixed << std::setprecision(2) << "[";
+        for (size_t i = 0; i < polygon.points.size(); ++i) {
+            if (i > 0) json_stream << ",";
+            json_stream << "[" << polygon.points[i].x << "," << polygon.points[i].y << "]";
+        }
+        json_stream << "]";
+        std::string json_str = json_stream.str();
+
+        query = "INSERT INTO pattern_geometries "
+                "(pattern_id, layer_number, datatype, geometry_type, coordinates, area, perimeter) "
+                "VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7)";
+        txn.exec_params(query,
+            pattern_id, layer_number, datatype, "polygon", json_str, polygon.area, polygon.perimeter);
+        LOG_DEBUG("Inserted polygon for layer " + std::to_string(layer_number) + ":" + std::to_string(datatype));
+        return true;
+    } catch (const std::exception& e) {
+        reportError("Error inserting polygon: " + std::string(e.what()), query);
+        return false;
+    }
+}
+
+std::vector<Pattern> DatabaseManager::getPatterns() {
+    LOG_FUNCTION();
+    std::vector<Pattern> patterns;
+    if (!isConnected() && !connect()) return patterns;
+
+    std::string query;
+    try {
+        pqxx::work txn(*conn_);
+        query = "SELECT id, pattern_hash, mask_layer_number, mask_layer_datatype, "
+                "input_layers::text, layout_file_name, created_at "
+                "FROM patterns ORDER BY created_at DESC";
+        pqxx::result res = txn.exec(query);
+        for (const auto& row : res) {
+            patterns.push_back({
+                row[0].as<int>(),
+                row[1].as<std::string>(),
+                row[2].as<int>(),
+                row[3].as<int>(),
+                row[4].as<std::string>(),
+                row[5].as<std::string>(),
+                row[6].as<std::string>()
+            });
+        }
+        LOG_INFO("Retrieved " + std::to_string(patterns.size()) + " patterns");
+        return patterns;
+    } catch (const std::exception& e) {
+        reportError("Error retrieving patterns: " + std::string(e.what()), query);
+        return patterns;
+    }
+}
+
+std::vector<Geometry> DatabaseManager::getGeometries(int pattern_id) {
+    LOG_FUNCTION();
+    std::vector<Geometry> geometries;
+    if (!isConnected() && !connect()) return geometries;
+
+    std::string query;
+    try {
+        pqxx::work txn(*conn_);
+        query = "SELECT id, pattern_id, layer_number, datatype, geometry_type, "
+                "coordinates::text, area, perimeter FROM pattern_geometries";
+        if (pattern_id >= 0) {
+            query += " WHERE pattern_id = " + std::to_string(pattern_id);
+        }
+        pqxx::result res = txn.exec(query);
+        for (const auto& row : res) {
+            geometries.push_back({
+                row[0].as<int>(),
+                row[1].as<int>(),
+                row[2].as<int>(),
+                row[3].as<int>(),
+                row[4].as<std::string>(),
+                row[5].as<std::string>(),
+                row[6].as<double>(),
+                row[7].as<double>()
+            });
+        }
+        LOG_INFO("Retrieved " + std::to_string(geometries.size()) + " geometries");
+        return geometries;
+    } catch (const std::exception& e) {
+        reportError("Error retrieving geometries: " + std::string(e.what()), query);
+        return geometries;
+    }
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Geometry.cpp
+
+#include "Geometry.h"
+#include <cmath>
+#include <sstream>
+#include <Logging.h>
+
+bool Point::operator==(const Point& other) const {
+    const double EPSILON = 1e-10;
+    return std::abs(x - other.x) < EPSILON && std::abs(y - other.y) < EPSILON;
+}
+
+Polygon::Polygon() : area(0.0), perimeter(0.0) {}
+
+void Polygon::calculateArea() {
+    LOG_FUNCTION();
+    area = 0.0;
+    size_t n = points.size();
+    if (n < 3) return;
+    for (size_t i = 0; i < n; ++i) {
+        size_t j = (i + 1) % n;
+        area += points[i].x * points[j].y - points[j].x * points[i].y;
+    }
+    area = std::abs(area) / 2.0;
+}
+
+void Polygon::calculatePerimeter() {
+    LOG_FUNCTION();
+    perimeter = 0.0;
+    size_t n = points.size();
+    if (n < 3) return;
+    for (size_t i = 0; i < n; ++i) {
+        size_t j = (i + 1) % n;
+        double dx = points[j].x - points[i].x;
+        double dy = points[j].y - points[i].y;
+        perimeter += std::sqrt(dx * dx + dy * dy);
+    }
+}
+
+bool Polygon::isValid() const {
+    LOG_FUNCTION();
+    if (points.size() < 3) {
+        std::ostringstream oss;
+        oss << "Polygon invalid: fewer than 3 points (" << points.size() << ")";
+        LOG_DEBUG(oss.str());
+        return false;
+    }
+
+    const double COORD_THRESHOLD = 1e-10;
+    bool has_valid_point = false;
+    for (const auto& p : points) {
+        if (std::abs(p.x) > COORD_THRESHOLD || std::abs(p.y) > COORD_THRESHOLD) {
+            has_valid_point = true;
+            break;
+        }
+    }
+    if (!has_valid_point) {
+        LOG_DEBUG("Polygon invalid: all points near [0,0]");
+        return false;
+    }
+
+    const double EPSILON = 1e-10;
+    for (size_t i = 0; i < points.size(); ++i) {
+        size_t j = (i + 1) % points.size();
+        if (std::abs(points[i].x - points[j].x) < EPSILON &&
+            std::abs(points[i].y - points[j].y) < EPSILON) {
+            std::ostringstream oss;
+            oss << "Polygon invalid: duplicate points at [" << points[i].x << "," << points[i].y << "]";
+            LOG_DEBUG(oss.str());
+            return false;
+        }
+    }
+
+    double temp_area = 0.0;
+    for (size_t i = 0; i < points.size(); ++i) {
+        size_t j = (i + 1) % points.size();
+        temp_area += points[i].x * points[j].y - points[j].x * points[i].y;
+    }
+    temp_area = std::abs(temp_area) / 2.0;
+    if (temp_area < 1e-9) {
+        std::ostringstream oss;
+        oss << "Polygon invalid: area too small (" << temp_area << ")";
+        LOG_DEBUG(oss.str());
+        return false;
+    }
+
+    return true;
+}
+
+Layer::Layer(int num, int dt) : layer_number(num), datatype(dt) {}
+
+size_t Layer::getPolygonCount() const {
+    return polygons.size();
+}
+
+double Layer::getTotalArea() const {
+    LOG_FUNCTION();
+    double total = 0.0;
+    for (const auto& poly : polygons) {
+        total += poly.area;
+    }
+    return total;
+}
+
+MultiLayerPattern::MultiLayerPattern() : mask_layer_number(-1), mask_layer_datatype(-1) {}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/LayoutFileReader.cpp
+
+#include "LayoutFileReader.h"
+#include <algorithm>
+#include <stdexcept>
+#include <cstring>
+#include <cmath>
+#include <sstream>
+#include <Logging.h>
+
+LayoutFileReader::LayoutFileReader(const std::string& filename) : filename_(filename) {
+    detectFileType();
+}
+
+LayoutFileReader::FileType LayoutFileReader::getFileType() const {
+    return file_type_;
+}
+
+Layer LayoutFileReader::loadLayer(int layer_number, int datatype) {
+    LOG_FUNCTION();
+    std::ostringstream oss;
+    oss << "Loading layer " << layer_number << ":" << datatype << " from " << filename_;
+    LOG_INFO(oss.str());
+    Layer layer(layer_number, datatype);
+    if (file_type_ == GDSII) {
+        loadGDSIILayer(layer_number, datatype, layer);
+    } else if (file_type_ == OASIS) {
+        loadOASISLayer(layer_number, datatype, layer);
+    } else {
+        oss.str("");
+        oss << "Unsupported file format: " << filename_;
+        throw std::runtime_error(oss.str());
+    }
+    oss.str("");
+    oss << "Completed loading layer " << layer_number << ":" << datatype
+        << " with " << layer.polygons.size() << " polygons";
+    LOG_INFO(oss.str());
+    return layer;
+}
+
+std::vector<std::pair<int, int>> LayoutFileReader::getAvailableLayersAndDatatypes() {
+    LOG_FUNCTION();
+    std::vector<std::pair<int, int>> layers;
+    if (file_type_ == GDSII) {
+        std::ifstream file(filename_, std::ios::binary);
+        if (!file.is_open()) {
+            std::ostringstream oss;
+            oss << "Cannot open file: " << filename_;
+            throw std::runtime_error(oss.str());
+        }
+        int current_layer = -1;
+        while (!file.eof()) {
+            try {
+                uint16_t length = read_uint16(file);
+                if (length == 0) continue;
+                uint8_t record_type = read_uint8(file);
+                uint8_t data_type = read_uint8(file);
+                if (record_type == 0x0D && data_type == 0x02) { // LAYER
+                    if (length == 6) {
+                        current_layer = read_uint16(file);
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                } else if (record_type == 0x0E && data_type == 0x02) { // DATATYPE
+                    if (length == 6) {
+                        int datatype = read_uint16(file);
+                        if (current_layer >= 0) {
+                            layers.emplace_back(current_layer, datatype);
+                        }
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                } else {
+                    file.ignore(length - 4);
+                }
+            } catch (const std::runtime_error& e) {
+                break;
+            }
+        }
+        std::sort(layers.begin(), layers.end());
+        layers.erase(std::unique(layers.begin(), layers.end()), layers.end());
+        std::ostringstream oss;
+        oss << "Available layers: ";
+        for (const auto& [layer, dt] : layers) {
+            oss << layer << ":" << dt << " ";
+        }
+        LOG_INFO(oss.str());
+    } else if (file_type_ == OASIS) {
+        layers = {{1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}}; // Placeholder
+        std::ostringstream oss;
+        oss << "OASIS placeholder layers: ";
+        for (const auto& [layer, dt] : layers) {
+            oss << layer << ":" << dt << " ";
+        }
+        LOG_INFO(oss.str());
+    }
+    return layers;
+}
+
+void LayoutFileReader::detectFileType() {
+    LOG_FUNCTION();
+    std::string ext = filename_.substr(filename_.find_last_of('.') + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+    if (ext == "gds" || ext == "gdsii") {
+        file_type_ = GDSII;
+    } else if (ext == "oas" || ext == "oasis") {
+        file_type_ = OASIS;
+    } else {
+        file_type_ = UNKNOWN;
+    }
+    std::ostringstream oss;
+    oss << "Detected file type: " << (file_type_ == GDSII ? "GDSII" : file_type_ == OASIS ? "OASIS" : "UNKNOWN")
+        << " for " << filename_;
+    LOG_INFO(oss.str());
+}
+
+uint16_t LayoutFileReader::read_uint16(std::ifstream& file) {
+    uint8_t bytes[2];
+    file.read(reinterpret_cast<char*>(bytes), 2);
+    if (!file) {
+        throw std::runtime_error("Failed to read uint16 from file");
+    }
+    return (bytes[0] << 8) | bytes[1];
+}
+
+uint8_t LayoutFileReader::read_uint8(std::ifstream& file) {
+    char byte;
+    file.read(&byte, 1);
+    if (!file) {
+        throw std::runtime_error("Failed to read uint8 from file");
+    }
+    return static_cast<uint8_t>(byte);
+}
+
+int32_t LayoutFileReader::read_int32(std::ifstream& file) {
+    uint8_t bytes[4];
+    file.read(reinterpret_cast<char*>(bytes), 4);
+    if (!file) {
+        throw std::runtime_error("Failed to read int32 from file");
+    }
+    return (static_cast<int32_t>(bytes[0]) << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
+}
+
+double LayoutFileReader::read_double(std::ifstream& file) {
+    uint8_t bytes[8];
+    file.read(reinterpret_cast<char*>(bytes), 8);
+    if (!file) {
+        throw std::runtime_error("Failed to read double from file");
+    }
+    uint8_t sign_exp = bytes[0];
+    bool negative = sign_exp & 0x80;
+    int exponent = (sign_exp & 0x7F) - 64;
+    uint64_t mantissa = 0;
+    for (int i = 1; i < 8; ++i) {
+        mantissa = (mantissa << 8) | bytes[i];
+    }
+    double value = static_cast<double>(mantissa) / (1ULL << 56) * std::pow(16.0, exponent);
+    return negative ? -value : value;
+}
+
+std::string LayoutFileReader::read_string(std::ifstream& file, uint16_t length) {
+    std::string str(length, '\0');
+    file.read(&str[0], length);
+    if (!file) {
+        throw std::runtime_error("Failed to read string from file");
+    }
+    str.erase(std::find(str.begin(), str.end(), '\0'), str.end());
+    return str;
+}
+
+uint64_t LayoutFileReader::read_unsigned_int(std::ifstream& file) {
+    uint64_t value = 0;
+    uint8_t byte = read_uint8(file);
+    value = byte & 0x7F;
+    while (byte & 0x80) {
+        byte = read_uint8(file);
+        value = (value << 7) | (byte & 0x7F);
+    }
+    return value;
+}
+
+int64_t LayoutFileReader::read_signed_int(std::ifstream& file) {
+    uint64_t u = read_unsigned_int(file);
+    bool negative = u & 1;
+    u >>= 1;
+    return negative ? -static_cast<int64_t>(u) : static_cast<int64_t>(u);
+}
+
+void LayoutFileReader::loadGDSIILayer(int layer_number, int datatype, Layer& layer) {
+    LOG_FUNCTION();
+    std::ifstream file(filename_, std::ios::binary);
+    if (!file.is_open()) {
+        std::ostringstream oss;
+        oss << "Cannot open file: " << filename_;
+        throw std::runtime_error(oss.str());
+    }
+
+    double unit_scale = 0.001; // Fallback (1 DBU = 0.001 um)
+    bool in_boundary = false;
+    int current_layer = -1;
+    int current_datatype = -1;
+    Polygon poly;
+
+    std::ostringstream oss;
+    oss << "Parsing GDSII file: " << filename_ << " for layer " << layer_number
+        << ":" << datatype;
+    LOG_INFO(oss.str());
+
+    while (!file.eof()) {
+        try {
+            uint16_t length = read_uint16(file);
+            if (length == 0) continue;
+            uint8_t record_type = read_uint8(file);
+            uint8_t data_type = read_uint8(file);
+
+            switch (record_type) {
+                case 0x03: // UNITS
+                    if (data_type == 0x05 && length == 20) {
+                        double user_unit = read_double(file);
+                        double db_unit = read_double(file);
+                        unit_scale = db_unit / user_unit;
+                        if (std::abs(unit_scale) < 1e-10 || std::isnan(unit_scale) || std::isinf(unit_scale)) {
+                            oss.str("");
+                            oss << "Invalid unit_scale " << unit_scale
+                                << " (user_unit=" << user_unit << ", db_unit=" << db_unit
+                                << "), using fallback 0.001";
+                            LOG_WARN(oss.str());
+                            unit_scale = 0.001;
+                        }
+                        oss.str("");
+                        oss << "UNITS: user_unit=" << user_unit << ", db_unit=" << db_unit
+                            << ", unit_scale=" << unit_scale;
+                        LOG_INFO(oss.str());
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                    break;
+                case 0x08: // BOUNDARY
+                    in_boundary = true;
+                    poly = Polygon();
+                    break;
+                case 0x0D: // LAYER
+                    if (data_type == 0x02 && length == 6) {
+                        current_layer = read_uint16(file);
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                    break;
+                case 0x0E: // DATATYPE
+                    if (data_type == 0x02 && length == 6) {
+                        current_datatype = read_uint16(file);
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                    break;
+                case 0x10: // XY
+                    if (in_boundary && data_type == 0x03) {
+                        int num_points = (length - 4) / 8;
+                        poly.points.clear();
+                        oss.str("");
+                        oss << "Raw coordinates: ";
+                        for (int i = 0; i < num_points; i++) {
+                            int32_t x = read_int32(file);
+                            int32_t y = read_int32(file);
+                            double scaled_x = x * unit_scale;
+                            double scaled_y = y * unit_scale;
+                            poly.points.emplace_back(scaled_x, scaled_y);
+                            oss << "[" << x << "," << y << "] ";
+                        }
+                        LOG_DEBUG(oss.str());
+                        oss.str("");
+                        oss << "Scaled coordinates: ";
+                        for (const auto& p : poly.points) {
+                            oss << "[" << p.x << "," << p.y << "] ";
+                        }
+                        LOG_DEBUG(oss.str());
+                        if (poly.points.size() > 1 && poly.points.front() == poly.points.back()) {
+                            poly.points.pop_back();
+                        }
+                    } else {
+                        file.ignore(length - 4);
+                    }
+                    break;
+                case 0x11: // ENDEL
+                    if (in_boundary) {
+                        if (current_layer == layer_number && current_datatype == datatype) {
+                            poly.calculateArea();
+                            poly.calculatePerimeter();
+                            if (poly.isValid()) {
+                                layer.polygons.push_back(poly);
+                                oss.str("");
+                                oss << "Added valid polygon to layer " << layer_number
+                                    << ":" << datatype << ", area=" << poly.area
+                                    << ", points=" << poly.points.size();
+                                LOG_DEBUG(oss.str());
+                            } else {
+                                oss.str("");
+                                oss << "Discarded invalid polygon in layer " << layer_number
+                                    << ":" << datatype << ", points=" << poly.points.size()
+                                    << ", area=" << poly.area;
+                                LOG_DEBUG(oss.str());
+                                oss.str("");
+                                oss << "Discarded polygon coordinates: ";
+                                for (const auto& p : poly.points) {
+                                    oss << "[" << p.x << "," << p.y << "] ";
+                                }
+                                LOG_DEBUG(oss.str());
+                            }
+                        }
+                        in_boundary = false;
+                    }
+                    break;
+                default:
+                    file.ignore(length - 4);
+                    break;
+            }
+        } catch (const std::runtime_error& e) {
+            if (file.eof()) {
+                break;
+            }
+            oss.str("");
+            oss << "Error during parsing: " << e.what();
+            LOG_ERROR(oss.str());
+            break;
+        }
+    }
+
+    oss.str("");
+    oss << "Loaded " << layer.polygons.size() << " valid polygons from GDSII layer "
+        << layer_number << ":" << datatype << " in file " << filename_;
+    LOG_INFO(oss.str());
+    if (layer.polygons.empty()) {
+        oss.str("");
+        oss << "No valid polygons found in layer " << layer_number << ":" << datatype;
+        LOG_WARN(oss.str());
+    }
+}
+
+void LayoutFileReader::loadOASISLayer(int layer_number, int datatype, Layer& layer) {
+    LOG_FUNCTION();
+    std::ifstream file(filename_, std::ios::binary);
+    if (!file.is_open()) {
+        std::ostringstream oss;
+        oss << "Cannot open file: " << filename_;
+        throw std::runtime_error(oss.str());
+    }
+
+    int current_layer = -1;
+    int current_datatype = -1;
+
+    uint8_t record_type = read_uint8(file);
+    if (record_type != 1) {
+        throw std::runtime_error("Missing START record in OASIS file");
+    }
+    uint64_t start_length = read_unsigned_int(file);
+    file.ignore(start_length);
+
+    std::ostringstream oss;
+    while (file.good()) {
+        record_type = read_uint8(file);
+        switch (record_type) {
+            case 19: { // LAYER
+                current_layer = static_cast<int>(read_unsigned_int(file));
+                current_datatype = static_cast<int>(read_unsigned_int(file));
+                oss.str("");
+                oss << "OASIS LAYER: " << current_layer << ", DATATYPE: " << current_datatype;
+                LOG_INFO(oss.str());
+                break;
+            }
+            case 23: { // POLYGON
+                if (current_layer == layer_number && current_datatype == datatype) {
+                    Polygon poly;
+                    uint64_t point_count = read_unsigned_int(file);
+                    oss.str("");
+                    oss << "OASIS POLYGON: " << point_count << " points";
+                    LOG_INFO(oss.str());
+                    bool has_valid_point = false;
+                    for (uint64_t i = 0; i < point_count; i++) {
+                        int64_t x = read_signed_int(file);
+                        int64_t y = read_signed_int(file);
+                        double scaled_x = static_cast<double>(x);
+                        double scaled_y = static_cast<double>(y);
+                        if (std::abs(scaled_x) > 1e-6 && std::abs(scaled_y) > 1e-6) {
+                            has_valid_point = true;
+                        }
+                        poly.points.emplace_back(scaled_x, scaled_y);
+                        oss.str("");
+                        oss << "  Point " << i << ": (" << scaled_x << ", " << scaled_y << ")";
+                        LOG_DEBUG(oss.str());
+                    }
+                    if (!has_valid_point) {
+                        oss.str("");
+                        oss << "OASIS polygon has no significant non-zero points";
+                        LOG_WARN(oss.str());
+                        poly.points.clear();
+                        break;
+                    }
+                    if (poly.points.size() > 1 && poly.points.front() == poly.points.back()) {
+                        poly.points.pop_back();
+                    }
+                    poly.calculateArea();
+                    poly.calculatePerimeter();
+                    if (poly.isValid()) {
+                        layer.polygons.push_back(poly);
+                        oss.str("");
+                        oss << "Added OASIS polygon to layer " << layer_number
+                            << ":" << datatype << ", area=" << poly.area;
+                        LOG_INFO(oss.str());
+                    }
+                } else {
+                    uint64_t point_count = read_unsigned_int(file);
+                    file.ignore(point_count * 2 * sizeof(int64_t));
+                }
+                break;
+            }
+            case 34: { // END
+                oss.str("");
+                oss << "Reached OASIS END record";
+                LOG_INFO(oss.str());
+                return;
+            }
+            default: {
+                break;
+            }
+        }
+    }
+
+    oss.str("");
+    oss << "Loaded " << layer.polygons.size() << " polygons from OASIS layer "
+        << layer_number << ":" << datatype << " in file " << filename_;
+    LOG_INFO(oss.str());
+    if (layer.polygons.empty()) {
+        oss.str("");
+        oss << "No polygons found in OASIS layer " << layer_number << ":" << datatype;
+        LOG_WARN(oss.str());
+    }
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Logging.cpp
+
+#include "Logging.h"
+#include <cstdlib>
+#include <algorithm>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+
+Logger::Logger() {
+    // Check if logging is enabled
+    const char* logging_env = std::getenv("DFM_LOGGING");
+    if (logging_env) {
+        std::string logging_str = logging_env;
+        std::transform(logging_str.begin(), logging_str.end(), logging_str.begin(), ::tolower);
+        logging_enabled_ = (logging_str == "1" || logging_str == "true");
+    } else {
+        logging_enabled_ = false;
+    }
+
+    // Parse log level
+    const char* log_level_env = std::getenv("DFM_LOG_LEVEL");
+    if (log_level_env) {
+        log_level_ = parseLogLevel(log_level_env);
+    } else {
+        log_level_ = LogLevel::INFO; // Default
+    }
+}
+
+Logger& Logger::getInstance() {
+    static Logger instance;
+    return instance;
+}
+
+std::string Logger::levelToString(LogLevel level) const {
+    switch (level) {
+        case LogLevel::ERROR: return "ERROR";
+        case LogLevel::WARN: return "WARN";
+        case LogLevel::INFO: return "INFO";
+        case LogLevel::LOG_DEBUG: return "DEBUG";
+        default: return "UNKNOWN";
+    }
+}
+
+LogLevel Logger::parseLogLevel(const std::string& level_str) const {
+    std::string lower_str = level_str;
+    std::transform(lower_str.begin(), lower_str.end(), lower_str.begin(), ::tolower);
+    
+    if (lower_str == "error" || lower_str == "0") return LogLevel::ERROR;
+    if (lower_str == "warn" || lower_str == "1") return LogLevel::WARN;
+    if (lower_str == "info" || lower_str == "2") return LogLevel::INFO;
+    if (lower_str == "debug" || lower_str == "3") return LogLevel::LOG_DEBUG;
+    
+    return LogLevel::INFO; // Default if invalid
+}
+
+void Logger::log(LogLevel level, const std::string& message) const {
+    if (!logging_enabled_ || level > log_level_) return;
+
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+    std::ostringstream oss;
+    oss << std::put_time(std::localtime(&now_c), "%Y-%m-%d %H:%M:%S")
+        << '.' << std::setfill('0') << std::setw(3) << ms.count()
+        << " [" << levelToString(level) << "] " << message;
+
+    std::lock_guard<std::mutex> lock(mtx_);
+    std::cout << oss.str() << std::endl;
+}
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/DatabaseManager.h
+
+#ifndef DATABASEMANAGER_H
+#define DATABASEMANAGER_H
+
+#include <pqxx/pqxx>
+#include <string>
+#include <vector>
+#include <functional>
+#include "Geometry.h"
+
+struct Pattern {
+    int id;
+    std::string pattern_hash;
+    int mask_layer_number;
+    int mask_layer_datatype;
+    std::string input_layers;
+    std::string layout_file_name;
+    std::string created_at;
+};
+
+struct Geometry {
+    int id;
+    int pattern_id;
+    int layer_number;
+    int datatype;
+    std::string geometry_type;
+    std::string coordinates;
+    double area;
+    double perimeter;
+};
+
+using ErrorCallback = std::function<void(const std::string&)>;
+
+class DatabaseManager {
+public:
+    DatabaseManager(const std::string& db_name, const std::string& user,
+                    const std::string& password, const std::string& host,
+                    const std::string& port, ErrorCallback error_callback);
+    ~DatabaseManager();
+    void setErrorCallback(ErrorCallback callback);
+    bool isConnected() const;
+    bool connect();
+    void disconnect();
+    bool createDatabaseIfNotExists();
+    bool createTables();
+    bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
+    std::vector<Pattern> getPatterns();
+    std::vector<Geometry> getGeometries(int pattern_id = -1);
+
+private:
+    std::string db_name_;
+    std::string user_;
+    std::string password_;
+    std::string host_;
+    std::string port_;
+    std::unique_ptr<pqxx::connection> conn_;
+    ErrorCallback error_callback_;
+    void reportError(const std::string& message, const std::string& query = "");
+    int insertPatternMetadata(pqxx::work& txn, const MultiLayerPattern& pattern, const std::string& layout_file_name);
+    bool insertPatternGeometries(pqxx::work& txn, int pattern_id, const MultiLayerPattern& pattern);
+    bool insertPolygon(pqxx::work& txn, int pattern_id, int layer_number, int datatype, const Polygon& polygon);
+};
+
+#endif // DATABASEMANAGER_H
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Geometry.h
+
+#ifndef GEOMETRY_H
+#define GEOMETRY_H
+
+#include <vector>
+#include <chrono>
+#include <string>
+
+struct Point {
+    double x, y;
+    Point() = default; // Default constructor
+    Point(double x_, double y_) : x(x_), y(y_) {} // New constructor for (x, y)
+    bool operator==(const Point& other) const;
+};
+
+struct Polygon {
+    std::vector<Point> points;
+    double area;
+    double perimeter;
+    Polygon();
+    void calculateArea();
+    void calculatePerimeter();
+    bool isValid() const;
+};
+
+struct Layer {
+    int layer_number;
+    int datatype;
+    std::vector<Polygon> polygons;
+    Layer(int num, int dt = 0);
+    size_t getPolygonCount() const;
+    double getTotalArea() const;
+};
+
+struct MultiLayerPattern {
+    std::string pattern_id;
+    int mask_layer_number;
+    int mask_layer_datatype;
+    Polygon mask_polygon;
+    std::vector<Layer> input_layers;
+    std::chrono::system_clock::time_point created_at;
+    MultiLayerPattern();
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/LayoutFileReader.h
+
+#ifndef LAYOUT_FILE_READER_H
+#define LAYOUT_FILE_READER_H
+
+#include "Geometry.h"
+#include <string>
+#include <vector>
+#include <fstream>
+
+class LayoutFileReader {
+public:
+    enum FileType { GDSII, OASIS, UNKNOWN };
+    LayoutFileReader(const std::string& filename);
+    FileType getFileType() const;
+    Layer loadLayer(int layer_number, int datatype); // Updated to include datatype
+    std::vector<std::pair<int, int>> getAvailableLayersAndDatatypes(); // Updated to return layer:datatype pairs
+
+private:
+    std::string filename_;
+    FileType file_type_;
+    void detectFileType();
+    void loadGDSIILayer(int layer_number, int datatype, Layer& layer);
+    void loadOASISLayer(int layer_number, int datatype, Layer& layer);
+    uint16_t read_uint16(std::ifstream& file);
+    uint8_t read_uint8(std::ifstream& file);
+    int32_t read_int32(std::ifstream& file);
+    double read_double(std::ifstream& file);
+    std::string read_string(std::ifstream& file, uint16_t length);
+    uint64_t read_unsigned_int(std::ifstream& file);
+    int64_t read_signed_int(std::ifstream& file);
+};
+
+#endif
+=====================================
+Input file: /home/amrmuhammad/dev/dfm_pattern_match4/shared/Logging.h
+
+#ifndef LOGGING_H
+#define LOGGING_H
+
+#include <string>
+#include <iostream>
+#include <mutex>
+
+// Logging verbosity levels
+enum class LogLevel {
+    ERROR = 0,
+    WARN = 1,
+    INFO = 2,
+    LOG_DEBUG = 3
+};
+
+class Logger {
+public:
+    static Logger& getInstance();
+    void log(LogLevel level, const std::string& message) const;
+    bool isLoggingEnabled() const { return logging_enabled_; }
+    LogLevel getLogLevel() const { return log_level_; }
+
+private:
+    Logger();
+    bool logging_enabled_;
+    LogLevel log_level_;
+    mutable std::mutex mtx_;
+    std::string levelToString(LogLevel level) const;
+    LogLevel parseLogLevel(const std::string& level_str) const;
+};
+
+// Logging macros
+#define LOG_ERROR(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::ERROR) { \
+            Logger::getInstance().log(LogLevel::ERROR, message); \
+        } \
+    } while (0)
+
+#define LOG_WARN(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::WARN) { \
+            Logger::getInstance().log(LogLevel::WARN, message); \
+        } \
+    } while (0)
+
+#define LOG_INFO(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::INFO) { \
+            Logger::getInstance().log(LogLevel::INFO, message); \
+        } \
+    } while (0)
+
+#define LOG_DEBUG(message) \
+    do { \
+        if (Logger::getInstance().isLoggingEnabled() && \
+            Logger::getInstance().getLogLevel() >= LogLevel::LOG_DEBUG) { \
+            Logger::getInstance().log(LogLevel::LOG_DEBUG, message); \
+        } \
+    } while (0);
+
+#define LOG_FUNCTION() \
+    LOG_DEBUG("Entering " + std::string(__FUNCTION__))
+
+#endif // LOGGING_H
+=====================================

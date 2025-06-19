@@ -4,22 +4,45 @@
 #include <QAction>
 #include <QApplication>
 #include <QDebug>
+#include <QUiLoader>
+#include <QFile>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
-    splitter = new QSplitter(Qt::Horizontal, this);
-    dbViewer = new DatabaseViewer(this);
-    gdsViewer = nullptr; // Created on demand
-    batchPatternCapture = nullptr; // Created on demand
-    statusBar = QMainWindow::statusBar();
 
-    splitter->addWidget(dbViewer);
-    setCentralWidget(splitter);
+    // Load UI file
+    QUiLoader loader;
+    QFile file(":/mainwindow.ui");
+    file.open(QFile::ReadOnly);
+    QWidget *ui = loader.load(&file, this);
+    file.close();
+    setCentralWidget(ui);
+
+    // Find widgets
+    dbViewer = new DatabaseViewer(findChild<QWidget*>("dbViewerPlaceholder"));
+    statusBar = findChild<QStatusBar*>("statusBar");
+    fileMenu = findChild<QMenu*>("fileMenu");
+    toolsMenu = findChild<QMenu*>("toolsMenu");
+    exitAction = findChild<QAction*>("exitAction");
+    batchPatternCaptureAction = findChild<QAction*>("batchPatternCaptureAction");
+
+    gdsViewer = new GdsViewer();
+    batchPatternCapture = nullptr;
+
     setWindowTitle("DFM Patterns Database Viewer");
     resize(1200, 800);
 
-    setupMenuBar();
+    // Connect signals
+    connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
+    connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
+
+    // Show GdsViewer by default
+    gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
+    gdsViewer->setWindowTitle("GDS/OASIS Viewer");
+    gdsViewer->resize(800, 600);
+    gdsViewer->show();
+
     loadSettings();
     LOG_INFO("MainWindow initialized");
 }
@@ -33,37 +56,11 @@ MainWindow::~MainWindow() {
     LOG_INFO("MainWindow destroyed");
 }
 
-void MainWindow::setupMenuBar() {
-    QMenuBar *menuBar = this->menuBar();
-    fileMenu = menuBar->addMenu("File");
-    exitAction = fileMenu->addAction("Exit");
-    connect(exitAction, &QAction::triggered, qApp, &QApplication::quit);
-
-    toolsMenu = menuBar->addMenu("Tools");
-    gdsViewerAction = toolsMenu->addAction("GDS/OASIS Viewer");
-    batchPatternCaptureAction = toolsMenu->addAction("Batch PatternCapture");
-    connect(gdsViewerAction, &QAction::triggered, this, &MainWindow::openGdsViewer);
-    connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
-}
-
-void MainWindow::openGdsViewer() {
-    LOG_FUNCTION();
-    if (!gdsViewer) {
-        gdsViewer = new GdsViewer();
-        gdsViewer->setAttribute(Qt::WA_DeleteOnClose); // Delete when closed
-        gdsViewer->setWindowTitle("GDS/OASIS Viewer");
-        gdsViewer->resize(800, 600);
-    }
-    gdsViewer->show();
-    gdsViewer->raise();
-    LOG_INFO("GDS/OASIS Viewer opened");
-}
-
 void MainWindow::openBatchPatternCapture() {
     LOG_FUNCTION();
     if (!batchPatternCapture) {
         batchPatternCapture = new BatchPatternCapture();
-        batchPatternCapture->setAttribute(Qt::WA_DeleteOnClose); // Delete when closed
+        batchPatternCapture->setAttribute(Qt::WA_DeleteOnClose);
         batchPatternCapture->setWindowTitle("Batch PatternCapture");
         batchPatternCapture->resize(800, 600);
     }
@@ -77,16 +74,12 @@ void MainWindow::loadSettings() {
     if (settings->contains("geometry")) {
         restoreGeometry(settings->value("geometry").toByteArray());
     }
-    if (settings->contains("splitterState")) {
-        splitter->restoreState(settings->value("splitterState").toByteArray());
-    }
     LOG_DEBUG("Loaded MainWindow settings");
 }
 
 void MainWindow::saveSettings() {
     LOG_FUNCTION();
     settings->setValue("geometry", saveGeometry());
-    settings->setValue("splitterState", splitter->saveState());
     settings->sync();
     LOG_DEBUG("Saved MainWindow settings");
 }

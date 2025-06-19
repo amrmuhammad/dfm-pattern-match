@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Sql REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBPQXX REQUIRED libpqxx)
 
@@ -35,15 +35,25 @@ set(HEADERS
     ../shared/DatabaseManager.h
 )
 
+set(RESOURCES
+    resources.qrc
+)
+
+set(UI_FILES
+    src/mainwindow.ui
+    src/batchpatterncapture.ui
+)
+
 add_executable(${PROJECT_NAME}
     ${SOURCES}
     ${HEADERS}
+    ${RESOURCES}
+    ${UI_FILES}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/../shared
-    /usr/include
-    /usr/include/postgresql
     ${LIBPQXX_INCLUDE_DIRS}
 )
 
@@ -51,6 +61,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt5::Core
     Qt5::Gui
     Qt5::Widgets
+    Qt5::Sql
     ${LIBPQXX_LIBRARIES}
     -lpq
 )

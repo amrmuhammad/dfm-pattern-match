@@ -2,7 +2,6 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QSplitter>
 #include <QStatusBar>
 #include <QSettings>
 #include <QMenu>
@@ -18,7 +17,6 @@ public:
     ~MainWindow();
 
 private slots:
-    void openGdsViewer();
     void openBatchPatternCapture();
 
 private:
@@ -26,16 +24,14 @@ private:
     void loadSettings();
     void setupMenuBar();
 
-    QSplitter *splitter;
     DatabaseViewer *dbViewer;
-    GdsViewer *gdsViewer; // Owned, but not in splitter
-    BatchPatternCapture *batchPatternCapture; // Owned, but not in splitter
+    GdsViewer *gdsViewer;
+    BatchPatternCapture *batchPatternCapture;
     QStatusBar *statusBar;
     QSettings *settings;
     QMenu *fileMenu;
     QMenu *toolsMenu;
     QAction *exitAction;
-    QAction *gdsViewerAction;
     QAction *batchPatternCaptureAction;
 };
 

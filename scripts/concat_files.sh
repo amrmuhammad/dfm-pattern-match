@@ -6,8 +6,9 @@ if [ $# -lt 1 ]; then
     exit 1
 fi
 
-# Store output file name (first argument)
+# Store output file name (first argument) and get its full path
 output_file=$1
+output_full_path=$(realpath "$output_file")
 shift # Remove first argument, leaving input files
 
 # Check if any input files are provided
@@ -19,11 +20,17 @@ fi
 # Clear output file if it exists
 > "$output_file"
 
+# Write output file full path
+echo "Output file: $output_full_path" >> "$output_file"
+echo "" >> "$output_file"
+
 # Concatenate all input files to output file with formatting
 for file in "$@"; do
     if [ -f "$file" ]; then
-        # Append filename
-        echo "$file" >> "$output_file"
+        # Get full path of input file
+        input_full_path=$(realpath "$file")
+        # Append input filename with full path
+        echo "Input file: $input_full_path" >> "$output_file"
         # Append empty line
         echo "" >> "$output_file"
         # Append file contents
@@ -35,4 +42,4 @@ for file in "$@"; do
     fi
 done
 
-echo "Concatenation complete. Output saved to $output_file"
+echo "Concatenation complete. Output saved to $output_full_path"

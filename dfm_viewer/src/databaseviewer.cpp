@@ -8,39 +8,72 @@
 #include <QJsonArray>
 #include <QMessageBox>
 #include <QInputDialog>
+#include <QSplitter>
 
 DatabaseViewer::DatabaseViewer(QWidget *parent) : QWidget(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
-    db_manager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
-                                     settings->value("dbPassword", "").toString().toStdString(),
-                                     settings->value("dbHost", "localhost").toString().toStdString(),
-                                     settings->value("dbPort", "5432").toString().toStdString(),
-                                     [this](const std::string& error) {
-                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                     });
+    dbManager = new DatabaseManager("test_db", settings->value("dbUser", "").toString().toStdString(),
+                                    settings->value("dbPassword", "").toString().toStdString(),
+                                    settings->value("dbHost", "localhost").toString().toStdString(),
+                                    settings->value("dbPort", "5432").toString().toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
 
-    QVBoxLayout *layout = new QVBoxLayout(this);
+    // Main layout with splitter
+    QHBoxLayout *mainLayout = new QHBoxLayout(this);
+    QSplitter *splitter = new QSplitter(Qt::Horizontal, this);
+    mainLayout->addWidget(splitter);
+
+    // Left side: Database and Patterns lists
+    QWidget *leftWidget = new QWidget(this);
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftWidget);
+    databasesListLabel = new QLabel("Patterns Databases List", this);
+    databasesList = new QListWidget(this);
+    patternsListLabel = new QLabel("Patterns List for database: None", this);
+    patternsList = new QListWidget(this);
+    leftLayout->addWidget(databasesListLabel);
+    leftLayout->addWidget(databasesList);
+    leftLayout->addWidget(patternsListLabel);
+    leftLayout->addWidget(patternsList);
+    splitter->addWidget(leftWidget);
+
+    // Right side: Tabbed panels
+    QWidget *rightWidget = new QWidget(this);
+    QVBoxLayout *rightLayout = new QVBoxLayout(rightWidget);
     refreshButton = new QPushButton("Refresh Patterns", this);
     dbConfigButton = new QPushButton("Configure Database", this);
+    rightTabs = new QTabWidget(this);
     tableView = new QTableView(this);
     graphicsView = new QGraphicsView(this);
     scene = new QGraphicsScene(this);
     graphicsView->setScene(scene);
     graphicsView->setRenderHint(QPainter::Antialiasing);
     graphicsView->setDragMode(QGraphicsView::ScrollHandDrag);
-    layout->addWidget(refreshButton);
-    layout->addWidget(dbConfigButton);
-    layout->addWidget(tableView);
-    layout->addWidget(graphicsView);
+    rightTabs->addTab(graphicsView, "Geometries");
+    rightTabs->addTab(tableView, "Metadata");
+    rightLayout->addWidget(refreshButton);
+    rightLayout->addWidget(dbConfigButton);
+    rightLayout->addWidget(rightTabs);
+    splitter->addWidget(rightWidget);
 
+    splitter->setSizes({200, 600}); // Initial sizes for left and right
     graphicsView->installEventFilter(new ZoomEventFilter(graphicsView, this));
 
+    // Connect signals
     connect(refreshButton, &QPushButton::clicked, this, &DatabaseViewer::refreshPatterns);
     connect(dbConfigButton, &QPushButton::clicked, this, &DatabaseViewer::configureDatabase);
+    connect(databasesList, &QListWidget::itemClicked, this, &DatabaseViewer::onDatabaseSelected);
+    connect(patternsList, &QListWidget::itemClicked, this, &DatabaseViewer::onPatternSelected);
 
-    if (db_manager->isConnected() || db_manager->connect()) {
-        db_manager->createTables();
+    // Load initial database list
+    if (dbManager->isConnected() || dbManager->connect()) {
+        auto databases = dbManager->getAvailableDatabases();
+        for (const auto& db : databases) {
+            databasesList->addItem(QString::fromStdString(db));
+        }
+        dbManager->createTables();
         loadPatterns();
     }
     LOG_INFO("DatabaseViewer initialized");
@@ -73,15 +106,20 @@ void DatabaseViewer::configureDatabase() {
     settings->sync();
     LOG_INFO("Database configuration updated: dbName=" + dbName.toStdString() + ", host=" + host.toStdString());
 
-    db_manager->disconnect();
-    delete db_manager;
-    db_manager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
-                                     host.toStdString(), port.toStdString(),
-                                     [this](const std::string& error) {
-                                         QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-                                     });
-    if (db_manager->isConnected() || db_manager->connect()) {
-        db_manager->createTables();
+    dbManager->disconnect();
+    delete dbManager;
+    dbManager = new DatabaseManager(dbName.toStdString(), user.toStdString(), password.toStdString(),
+                                    host.toStdString(), port.toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
+    if (dbManager->isConnected() || dbManager->connect()) {
+        dbManager->createTables();
+        databasesList->clear();
+        auto databases = dbManager->getAvailableDatabases();
+        for (const auto& db : databases) {
+            databasesList->addItem(QString::fromStdString(db));
+        }
         refreshPatterns();
     }
 }
@@ -89,23 +127,60 @@ void DatabaseViewer::configureDatabase() {
 void DatabaseViewer::refreshPatterns() {
     LOG_FUNCTION();
     scene->clear();
+    patternsList->clear();
+    patternsListLabel->setText("Patterns List for database: None");
     loadPatterns();
 }
 
-void DatabaseViewer::loadPatterns() {
+void DatabaseViewer::onDatabaseSelected(QListWidgetItem *item) {
     LOG_FUNCTION();
-    if (!db_manager->isConnected() && !db_manager->connect()) {
+    QString dbName = item->text();
+    patternsListLabel->setText("Patterns List for database: " + dbName);
+    patternsList->clear();
+    scene->clear();
+    tableView->setModel(nullptr);
+
+    dbManager->disconnect();
+    delete dbManager;
+    dbManager = new DatabaseManager(dbName.toStdString(), settings->value("dbUser", "").toString().toStdString(),
+                                    settings->value("dbPassword", "").toString().toStdString(),
+                                    settings->value("dbHost", "localhost").toString().toStdString(),
+                                    settings->value("dbPort", "5432").toString().toStdString(),
+                                    [this](const std::string& error) {
+                                        QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+                                    });
+    if (dbManager->isConnected() || dbManager->connect()) {
+        dbManager->createTables();
+        auto patterns = dbManager->getPatterns();
+        for (const auto& pattern : patterns) {
+            patternsList->addItem(QString::number(pattern.id));
+        }
+        LOG_INFO("Loaded patterns for database: " + dbName.toStdString());
+    }
+}
+
+void DatabaseViewer::onPatternSelected(QListWidgetItem *item) {
+    LOG_FUNCTION();
+    int patternId = item->text().toInt();
+    scene->clear();
+    loadPatterns(patternId);
+}
+
+void DatabaseViewer::loadPatterns(int patternId) {
+    LOG_FUNCTION();
+    if (!dbManager->isConnected() && !dbManager->connect()) {
         LOG_WARN("No database connection");
         return;
     }
     try {
-        auto patterns = db_manager->getPatterns();
-        auto geometries = db_manager->getGeometries();
+        auto patterns = dbManager->getPatterns();
+        auto geometries = dbManager->getGeometries(patternId);
         QStandardItemModel *model = new QStandardItemModel(this);
         model->setColumnCount(7);
         model->setHorizontalHeaderLabels({"ID", "Pattern Hash", "Mask Layer", "Input Layers", "Layout File", "Area", "Perimeter"});
 
         for (const auto& pattern : patterns) {
+            if (patternId >= 0 && pattern.id != patternId) continue;
             QList<QStandardItem*> items;
             items << new QStandardItem(QString::number(pattern.id));
             items << new QStandardItem(QString::fromStdString(pattern.pattern_hash));

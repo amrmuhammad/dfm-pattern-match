@@ -45,6 +45,7 @@ public:
     bool storePattern(const MultiLayerPattern& pattern, const std::string& layout_file_name);
     std::vector<Pattern> getPatterns();
     std::vector<Geometry> getGeometries(int pattern_id = -1);
+    std::vector<std::string> getAvailableDatabases();
 
 private:
     std::string db_name_;
