@@ -16,7 +16,7 @@
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="centralLayout">
     <item>
-     <layout class="QHBoxLayout" name="inputLayout">
+     <layout class="QHBoxLayout" name="fileLayout">
       <item>
        <widget class="QLabel" name="layoutFileLabel">
         <property name="text">
@@ -25,7 +25,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QLineEdit" name="layoutFileLineEdit"/>
+       <widget class="QLineEdit" name="layoutFileEdit"/>
       </item>
       <item>
        <widget class="QPushButton" name="browseButton">
@@ -37,14 +37,63 @@
      </layout>
     </item>
     <item>
-     <widget class="QPushButton" name="processButton">
+     <widget class="QLabel" name="maskLayerLabel">
       <property name="text">
-       <string>Process</string>
+       <string>Mask Layer Number:</string>
       </property>
      </widget>
     </item>
     <item>
-     <widget class="QTextEdit" name="outputTextEdit">
+     <widget class="QLineEdit" name="maskLayerEdit">
+      <property name="text">
+       <string>1</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="inputLayersLabel">
+      <property name="text">
+       <string>Input Layers Numbers:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="inputLayersEdit">
+      <property name="text">
+       <string>2</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="dbNameLabel">
+      <property name="text">
+       <string>Database Name:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="dbNameEdit">
+      <property name="text">
+       <string>test_db</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="runButton">
+      <property name="text">
+       <string>Run DFM Pattern Capture</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="cancelButton">
+      <property name="text">
+       <string>Cancel</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTextEdit" name="logText">
       <property name="readOnly">
        <bool>true</bool>
       </property>

@@ -4,39 +4,31 @@
 #include <QLabel>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QtUiTools/QUiLoader>
+#include <QFile>
 
 BatchPatternCapture::BatchPatternCapture(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
-    centralWidget = new QWidget(this);
-    QVBoxLayout *layout = new QVBoxLayout(centralWidget);
-    layoutFileEdit = new QLineEdit(this);
-    browseButton = new QPushButton("Browse", this);
-    maskLayerEdit = new QLineEdit("1", this);
-    inputLayersEdit = new QLineEdit("2", this);
-    dbNameEdit = new QLineEdit("test_db", this);
-    runButton = new QPushButton("Run DFM Pattern Capture", this);
-    cancelButton = new QPushButton("Cancel", this);
-    logText = new QTextEdit(this);
-    logText->setReadOnly(true);
 
-    QHBoxLayout *fileLayout = new QHBoxLayout();
-    fileLayout->addWidget(new QLabel("Layout File:"));
-    fileLayout->addWidget(layoutFileEdit);
-    fileLayout->addWidget(browseButton);
+    // Load UI file
+    QUiLoader loader;
+    QFile file(":/batchpatterncapture.ui");
+    file.open(QFile::ReadOnly);
+    QWidget *ui = loader.load(&file, this);
+    file.close();
+    setCentralWidget(ui);
 
-    layout->addLayout(fileLayout);
-    layout->addWidget(new QLabel("Mask Layer Number:"));
-    layout->addWidget(maskLayerEdit);
-    layout->addWidget(new QLabel("Input Layers Numbers:"));
-    layout->addWidget(inputLayersEdit);
-    layout->addWidget(new QLabel("Database Name:"));
-    layout->addWidget(dbNameEdit);
-    layout->addWidget(runButton);
-    layout->addWidget(cancelButton);
-    layout->addWidget(logText);
+    // Find widgets
+    layoutFileEdit = findChild<QLineEdit*>("layoutFileEdit");
+    browseButton = findChild<QPushButton*>("browseButton");
+    maskLayerEdit = findChild<QLineEdit*>("maskLayerEdit");
+    inputLayersEdit = findChild<QLineEdit*>("inputLayersEdit");
+    dbNameEdit = findChild<QLineEdit*>("dbNameEdit");
+    runButton = findChild<QPushButton*>("runButton");
+    cancelButton = findChild<QPushButton*>("cancelButton");
+    logText = findChild<QTextEdit*>("logText");
 
-    setCentralWidget(centralWidget);
     process = new QProcess(this);
     connect(browseButton, &QPushButton::clicked, this, &BatchPatternCapture::browseLayoutFile);
     connect(runButton, &QPushButton::clicked, this, &BatchPatternCapture::runPatternCapture);

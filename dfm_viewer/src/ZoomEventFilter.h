@@ -1,8 +1,12 @@
 #ifndef ZOOMEVENTFILTER_H
-#define ZOOMEVENTFILTER_H#include <QObject>
+#define ZOOMEVENTFILTER_H
+
+#include <QObject>
 #include <QGraphicsView>
 #include <QEvent>
-#include <QWheelEvent>class ZoomEventFilter : public QObject {
+#include <QWheelEvent>
+
+class ZoomEventFilter : public QObject {
     Q_OBJECT
 public:
     ZoomEventFilter(QGraphicsView *view, QObject *parent = nullptr)
@@ -21,5 +25,7 @@ public:
         return QObject::eventFilter(obj, event);
     }private:
     QGraphicsView *graphicsView;
-};#endif // ZOOMEVENTFILTER_H
+};
+
+#endif // ZOOMEVENTFILTER_H
 

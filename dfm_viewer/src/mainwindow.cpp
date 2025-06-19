@@ -4,7 +4,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QDebug>
-#include <QUiLoader>
+#include <QtUiTools/QUiLoader>
 #include <QFile>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {

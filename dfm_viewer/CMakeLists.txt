@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt5 COMPONENTS Core Gui Widgets Sql REQUIRED)
+find_package(Qt5 COMPONENTS Core Gui Widgets Sql UiTools REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBPQXX REQUIRED libpqxx)
 
@@ -62,6 +62,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt5::Gui
     Qt5::Widgets
     Qt5::Sql
+    Qt5::UiTools
     ${LIBPQXX_LIBRARIES}
     -lpq
 )
