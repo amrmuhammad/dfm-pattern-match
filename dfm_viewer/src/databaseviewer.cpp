@@ -163,10 +163,10 @@ void DatabaseViewer::onPatternSelected(QListWidgetItem *item) {
     LOG_FUNCTION();
     int patternId = item->text().toInt();
     scene->clear();
-    loadPatterns(patternId);
+    loadPatterns();
 }
 
-void DatabaseViewer::loadPatterns(int patternId) {
+void DatabaseViewer::loadPatterns() {
     LOG_FUNCTION();
     if (!dbManager->isConnected() && !dbManager->connect()) {
         LOG_WARN("No database connection");
@@ -174,13 +174,13 @@ void DatabaseViewer::loadPatterns(int patternId) {
     }
     try {
         auto patterns = dbManager->getPatterns();
-        auto geometries = dbManager->getGeometries(patternId);
+        auto geometries = dbManager->getGeometries();
         QStandardItemModel *model = new QStandardItemModel(this);
         model->setColumnCount(7);
         model->setHorizontalHeaderLabels({"ID", "Pattern Hash", "Mask Layer", "Input Layers", "Layout File", "Area", "Perimeter"});
 
         for (const auto& pattern : patterns) {
-            if (patternId >= 0 && pattern.id != patternId) continue;
+            //if (patternId >= 0 && pattern.id != patternId) continue;
             QList<QStandardItem*> items;
             items << new QStandardItem(QString::number(pattern.id));
             items << new QStandardItem(QString::fromStdString(pattern.pattern_hash));

@@ -12,6 +12,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include "../shared/DatabaseManager.h"
+#include <QSettings>
 
 class DatabaseViewer : public QWidget {
     Q_OBJECT
