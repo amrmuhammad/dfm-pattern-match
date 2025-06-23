@@ -5,6 +5,21 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QThread>
+#include <sstream>
+
+//////////////////////////////////////////////////////////////////////////////////////////////////
+void logQPolygonF(const QPolygonF& poly, const std::string& context = "") {
+    std::ostringstream oss;
+    oss << (context.empty() ? "QPolygonF" : context) << ": [";
+    for (int i = 0; i < poly.size(); ++i) {
+        const QPointF& point = poly[i];
+        oss << "(" << point.x() << ", " << point.y() << ")";
+        if (i < poly.size() - 1) oss << ", ";
+    }
+    oss << "]";
+    LOG_DEBUG(oss.str());
+}
+//////////////////////////////////////////////////////////////////////////////////////////////////
 
 GdsViewer::GdsViewer(QWidget *parent) : QMainWindow(parent), reader(nullptr) {
     LOG_FUNCTION();
@@ -12,7 +27,10 @@ GdsViewer::GdsViewer(QWidget *parent) : QMainWindow(parent), reader(nullptr) {
     QVBoxLayout *layout = new QVBoxLayout(centralWidget);
     loadButton = new QPushButton("Load GDSII/OASIS File", this);
     layerCombo = new QComboBox(this);
+    
     graphicsView = new QGraphicsView(this);
+    graphicsView->setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true); // Prevent bounding box artifacts
+    
     scene = new QGraphicsScene(this);
     graphicsView->setScene(scene);
     graphicsView->setRenderHint(QPainter::Antialiasing);
@@ -87,12 +105,28 @@ void GdsViewer::updateLayer(int index) {
 
 void GdsViewer::renderLayer(const Layer &layer) {
     LOG_FUNCTION();
+    
+    //bool display_only_one_polygon = true;
+    
+    // for debugging  TODO:remove after debugging////
+    //Layer layer_debug(66, 20);
+    //Polygon test_poly;
+    //test_poly.points = {{1000, 2000}, {2000, 2000}, {2000, 3000}, {1000, 3000}}; 
+    //layer_debug.polygons = {test_poly};
+    ///////////////////////////////////////////////
+    
     for (const auto &poly : layer.polygons) {
         QPolygonF qpoly;
         for (const auto &pt : poly.points) {
             qpoly << QPointF(pt.x, pt.y);
         }
+        
+        // logging
+        logQPolygonF(qpoly, "GdsViewer::renderLayer");
+        
         scene->addPolygon(qpoly, QPen(Qt::black), QBrush(QColor(0, 0, 255, 100)));
+        
+        //if (display_only_one_polygon) break; // exit for loop
     }
     graphicsView->fitInView(scene->itemsBoundingRect(), Qt::KeepAspectRatio);
     LOG_DEBUG("Rendered " + std::to_string(layer.polygons.size()) + " polygons");

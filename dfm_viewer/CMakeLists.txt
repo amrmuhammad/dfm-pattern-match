@@ -17,6 +17,7 @@ set(SOURCES
     src/databaseviewer.cpp
     src/gdsviewer.cpp
     src/batchpatterncapture.cpp
+    src/newDBinputdialog.cpp
     src/connectdbdialog.cpp
     ../shared/Geometry.cpp
     ../shared/LayoutFileReader.cpp
@@ -30,6 +31,7 @@ set(HEADERS
     src/databaseviewer.h
     src/gdsviewer.h
     src/batchpatterncapture.h
+    src/newDBinputdialog.h
     src/connectdbdialog.h
     src/ZoomEventFilter.h
     ../shared/Geometry.h

@@ -5,14 +5,17 @@
 #include <QApplication>
 #include <QStatusBar>
 #include <QVBoxLayout>
-#include <QWidget>
 #include <QInputDialog>
 #include <QMessageBox>
+#include "newDBinputdialog.h"
+#include <QWidget>
 #include "connectdbdialog.h"
 #include "../shared/DatabaseManager.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     LOG_FUNCTION();
+    
+    dialog = nullptr;
     settings = new QSettings("MyOrg", "DFMPatternViewer", this);
 
     // Create central widget and layout
@@ -64,6 +67,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(newDbAction, &QAction::triggered, this, &MainWindow::createNewDatabase);
     connect(connectDbAction, &QAction::triggered, this, &MainWindow::connectToDatabase);
     connect(batchPatternCaptureAction, &QAction::triggered, this, &MainWindow::openBatchPatternCapture);
+    connect(this, &QObject::destroyed, this, [this]() { if (dialog) dialog->deleteLater(); });
 
     // Show GdsViewer maximized and ensure MainWindow is in front
     gdsViewer->setAttribute(Qt::WA_DeleteOnClose);
@@ -81,6 +85,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 MainWindow::~MainWindow() {
     LOG_FUNCTION();
     saveSettings();
+    dialog = nullptr; // dialog deleted via deleteLater
     delete settings;
     delete gdsViewer;
     delete batchPatternCapture;
@@ -100,80 +105,106 @@ void MainWindow::openBatchPatternCapture() {
     LOG_INFO("Batch Pattern Capture opened");
 }
 
+void MainWindow::createNewDatabase() {
+    LOG_FUNCTION();
+    
+    if (dialog) {
+    	dialog->raise();
+    	return;
+    }
+    
+    dialog = new NewDBInputDialog("New Database", "Enter database name:", this);
+    while (true) {
+        if (dialog->exec() != QDialog::Accepted) {
+            LOG_INFO("New database creation cancelled");
+            dialog->deleteLater();
+            dialog = nullptr;
+            return;
+        }
+        QString dbName = dialog->getText();
+
+        // Retrieve database settings
+        QString user = settings->value("dbUser", "").toString();
+        QString password = settings->value("dbPassword", "").toString();
+        QString host = settings->value("dbHost", "localhost").toString();
+        QString port = settings->value("dbPort", "5432").toString();
+
+        // Create DatabaseManager instance
+        DatabaseManager dbManager(
+            dbName.toStdString(),
+            user.toStdString(),
+            password.toStdString(),
+            host.toStdString(),
+            port.toStdString(),
+            [this](const std::string& error) {
+                QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
+            }
+        );
+
+        // Create the database
+        CreateDatabaseIfNotExistsStatusCode status_code = dbManager.createDatabaseIfNotExists();
+        if (status_code == CreateDatabaseIfNotExistsStatusCode::DB_EXISTS) {
+            dialog->setValidationMessage(
+                QString("Database '%1' already exists. Use File → Connect to DB.").arg(dbName),
+                false
+            );
+            LOG_WARN("Database already exists: " + dbName.toStdString());
+            continue;
+        }
+
+        // Connect to the new database
+        if (!dbManager.connect()) {
+            dialog->setValidationMessage(
+                QString("Failed to connect to new database '%1'. Try again.").arg(dbName),
+                false
+            );
+            LOG_ERROR("Failed to connect to new database: " + dbName.toStdString());
+            continue;
+        }
+
+        // Create tables
+        if (!dbManager.createTables()) {
+            dialog->setValidationMessage(
+                QString("Failed to create tables in database '%1'. Try again.").arg(dbName),
+                false
+            );
+            LOG_ERROR("Failed to create tables in database: " + dbName.toStdString());
+            continue;
+        }
+
+        // Initialize patterns_db_version with valid GUID
+        if (!dbManager.initializeVersionGUID()) {
+            dialog->setValidationMessage(
+                QString("Failed to initialize database version for '%1'. Try again.").arg(dbName),
+                false
+            );
+            LOG_ERROR("Failed to initialize patterns_db_version for database: " + dbName.toStdString());
+            continue;
+        }
+
+        // Connect DatabaseViewer to the new database
+        if (dbViewer->connectToDatabase(dbName)) {
+            QMessageBox::information(this, "Success", "New database '" + dbName + "' created and connected successfully.");
+            LOG_INFO("Successfully created and connected to new database: " + dbName.toStdString());
+            dialog->deleteLater();
+            dialog = nullptr;
+            break;
+        } else {
+            dialog->setValidationMessage(
+                QString("Failed to connect DatabaseViewer to '%1'. Try again.").arg(dbName),
+                false
+            );
+            LOG_ERROR("Failed to connect DatabaseViewer to new database: " + dbName.toStdString());
+            continue;
+        }
+    }
+}
+
 void MainWindow::connectToDatabase() {
     LOG_FUNCTION();
     ConnectDbDialog dialog(this, dbViewer);
     dialog.exec();
     LOG_INFO("Connect to Database dialog closed");
-}
-
-void MainWindow::createNewDatabase() {
-    LOG_FUNCTION();
-    bool ok;
-    QString dbName = QInputDialog::getText(this, "New Database", "Enter database name:",
-                                           QLineEdit::Normal, "", &ok);
-    if (!ok || dbName.trimmed().isEmpty()) {
-        LOG_WARN("No database name provided for new database creation");
-        return;
-    }
-
-    // Retrieve database settings
-    QString user = settings->value("dbUser", "").toString();
-    QString password = settings->value("dbPassword", "").toString();
-    QString host = settings->value("dbHost", "localhost").toString();
-    QString port = settings->value("dbPort", "5432").toString();
-
-    // Create DatabaseManager instance
-    DatabaseManager dbManager(
-        dbName.toStdString(),
-        user.toStdString(),
-        password.toStdString(),
-        host.toStdString(),
-        port.toStdString(),
-        [this](const std::string& error) {
-            QMessageBox::critical(this, "Database Error", QString::fromStdString(error));
-        }
-    );
-
-    // Create the database
-    if (!dbManager.createDatabaseIfNotExists()) {
-        LOG_ERROR("Failed to create database: " + dbName.toStdString());
-        return;
-    }
-
-    // Connect to the new database
-    if (!dbManager.connect()) {
-        LOG_ERROR("Failed to connect to new database: " + dbName.toStdString());
-        return;
-    }
-
-    // Create tables
-    if (!dbManager.createTables()) {
-        LOG_ERROR("Failed to create tables in database: " + dbName.toStdString());
-        return;
-    }
-
-    // Insert valid GUID into patterns_db_version
-    try {
-        pqxx::work txn(*dbManager.conn_);
-        std::string query = "INSERT INTO patterns_db_version (version_id) VALUES ('123e4567-e89b-12d3-a456-426614174000')";
-        txn.exec0(query);
-        txn.commit();
-        LOG_INFO("Inserted GUID into patterns_db_version for database: " + dbName.toStdString());
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to insert GUID into patterns_db_version: " + std::string(e.what()));
-        QMessageBox::critical(this, "Database Error", QString("Failed to initialize database version: %1").arg(e.what()));
-        return;
-    }
-
-    // Connect DatabaseViewer to the new database
-    if (dbViewer->connectToDatabase(dbName)) {
-        QMessageBox::information(this, "Success", "New database '" + dbName + "' created and connected successfully.");
-        LOG_INFO("Successfully created and connected to new database: " + dbName.toStdString());
-    } else {
-        QMessageBox::critical(this, "Database Error", "Failed to connect DatabaseViewer to new database.");
-        LOG_ERROR("Failed to connect DatabaseViewer to new database: " + dbName.toStdString());
-    }
 }
 
 void MainWindow::loadSettings() {

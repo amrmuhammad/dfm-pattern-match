@@ -7,6 +7,7 @@
 #include "gdsviewer.h"
 #include "batchpatterncapture.h"
 
+class NewDBInputDialog;
 class QMenu;
 class QAction;
 class QStatusBar;
@@ -16,6 +17,9 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+private:
+    NewDBInputDialog *dialog;
 
 private slots:
     void openBatchPatternCapture();
